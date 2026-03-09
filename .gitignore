@@ -1,0 +1,16 @@
+.DS_Store
+**/.DS_Store
+.build
+.swiftpm
+.turbo
+**/.turbo
+node_modules
+dist
+coverage
+DerivedData
+xcuserdata
+*.xcuserstate
+Package.resolved
+*.db
+*.db-shm
+*.db-wal
