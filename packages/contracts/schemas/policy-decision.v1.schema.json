@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sensekit.dev/schemas/policy-decision.v1.schema.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_type",
+    "allowed_actions",
+    "blocked_actions",
+    "delivery_channel_preference",
+    "ttl_sec"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sensekit.policy_decision.v1"
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "allowed_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blocked_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "delivery_channel_preference": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ttl_sec": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}
+

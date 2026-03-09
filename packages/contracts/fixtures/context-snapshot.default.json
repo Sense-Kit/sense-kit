@@ -1,0 +1,23 @@
+{
+  "schema_version": "sensekit.context_snapshot.v1",
+  "captured_at": "2026-03-09T07:44:11Z",
+  "routine": {
+    "awake": true,
+    "focus": null,
+    "workout": "inactive"
+  },
+  "place": {
+    "type": "other",
+    "freshness": "recent"
+  },
+  "calendar": {
+    "in_meeting": false,
+    "next_meeting_in_min": 38,
+    "freshness": "live"
+  },
+  "device": {
+    "battery_percent_bucket": 80,
+    "charging": false
+  }
+}
+

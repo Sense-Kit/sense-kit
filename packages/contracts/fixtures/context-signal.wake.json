@@ -1,0 +1,14 @@
+{
+  "schema_version": "sensekit.context_signal.v1",
+  "signal_id": "sig_01",
+  "signal_key": "motion.stationary_to_walking_after_rest",
+  "source": "coremotion_activity",
+  "weight": 0.35,
+  "polarity": "support",
+  "observed_at": "2026-03-09T06:44:11Z",
+  "valid_for_sec": 120,
+  "payload": {
+    "confidence": "high"
+  }
+}
+

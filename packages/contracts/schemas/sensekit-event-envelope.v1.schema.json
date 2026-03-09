@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sensekit.dev/schemas/sensekit-event-envelope.v1.schema.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "device_id",
+    "event",
+    "snapshot",
+    "policy",
+    "delivery"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sensekit.event.v1"
+    },
+    "device_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event": {
+      "$ref": "context-event.v1.schema.json"
+    },
+    "snapshot": {
+      "$ref": "context-snapshot.v1.schema.json"
+    },
+    "policy": {
+      "$ref": "policy-decision.v1.schema.json"
+    },
+    "delivery": {
+      "type": "object",
+      "required": ["attempt", "queued_at"],
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "queued_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
+

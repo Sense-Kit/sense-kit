@@ -1,0 +1,18 @@
+{
+  "name": "sense-kit",
+  "private": true,
+  "packageManager": "pnpm@10.3.0",
+  "scripts": {
+    "build": "turbo run build",
+    "check": "turbo run check",
+    "test": "turbo run test",
+    "contracts:check": "pnpm --filter @sensekit/contracts check"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.2"
+  }
+}
+

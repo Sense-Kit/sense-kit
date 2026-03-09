@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sensekit.dev/schemas/context-event.v1.schema.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "confidence",
+    "reasons",
+    "mode_hint",
+    "cooldown_sec",
+    "dedupe_key"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sensekit.context_event.v1"
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "reasons": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "mode_hint": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cooldown_sec": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "dedupe_key": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
+

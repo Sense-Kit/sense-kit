@@ -1,0 +1,15 @@
+{
+  "schema_version": "sensekit.context_event.v1",
+  "event_id": "evt_01",
+  "event_type": "driving_started",
+  "occurred_at": "2026-03-09T07:44:11Z",
+  "confidence": 0.7,
+  "reasons": [
+    "motion.automotive_entered",
+    "motion.automotive_sustained_180s"
+  ],
+  "mode_hint": "voice_safe",
+  "cooldown_sec": 900,
+  "dedupe_key": "iphone_julian:driving_started:2026-03-09T07:44"
+}
+

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sensekit.dev/schemas/context-signal.v1.schema.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "signal_id",
+    "signal_key",
+    "source",
+    "weight",
+    "polarity",
+    "observed_at",
+    "valid_for_sec",
+    "payload"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sensekit.context_signal.v1"
+    },
+    "signal_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "signal_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "weight": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "polarity": {
+      "type": "string",
+      "enum": ["support", "oppose"]
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "valid_for_sec": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "payload": {
+      "type": "object"
+    }
+  }
+}
+

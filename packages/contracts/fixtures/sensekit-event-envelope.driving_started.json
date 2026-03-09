@@ -1,0 +1,63 @@
+{
+  "schema_version": "sensekit.event.v1",
+  "device_id": "iphone_julian",
+  "event": {
+    "schema_version": "sensekit.context_event.v1",
+    "event_id": "evt_01",
+    "event_type": "driving_started",
+    "occurred_at": "2026-03-09T07:44:11Z",
+    "confidence": 0.7,
+    "reasons": [
+      "motion.automotive_entered",
+      "motion.automotive_sustained_180s"
+    ],
+    "mode_hint": "voice_safe",
+    "cooldown_sec": 900,
+    "dedupe_key": "iphone_julian:driving_started:2026-03-09T07:44"
+  },
+  "snapshot": {
+    "schema_version": "sensekit.context_snapshot.v1",
+    "captured_at": "2026-03-09T07:44:11Z",
+    "routine": {
+      "awake": true,
+      "focus": null,
+      "workout": "inactive"
+    },
+    "place": {
+      "type": "other",
+      "freshness": "recent"
+    },
+    "calendar": {
+      "in_meeting": false,
+      "next_meeting_in_min": 38,
+      "freshness": "live"
+    },
+    "device": {
+      "battery_percent_bucket": 80,
+      "charging": false
+    }
+  },
+  "policy": {
+    "schema_version": "sensekit.policy_decision.v1",
+    "event_type": "driving_started",
+    "allowed_actions": [
+      "send_voice_note",
+      "send_tts",
+      "send_short_text"
+    ],
+    "blocked_actions": [
+      "send_long_markdown"
+    ],
+    "delivery_channel_preference": [
+      "voice_note",
+      "tts",
+      "short_text"
+    ],
+    "ttl_sec": 1800
+  },
+  "delivery": {
+    "attempt": 1,
+    "queued_at": "2026-03-09T07:44:12Z"
+  }
+}
+

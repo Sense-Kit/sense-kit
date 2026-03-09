@@ -1,0 +1,5 @@
+SenseKit event: {{event.event_type}}
+Confidence: {{event.confidence}}
+Mode hint: {{event.mode_hint}}
+Snapshot: {{snapshot}}
+

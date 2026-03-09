@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sensekit.dev/schemas/context-snapshot.v1.schema.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "captured_at",
+    "routine",
+    "place",
+    "calendar",
+    "device"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sensekit.context_snapshot.v1"
+    },
+    "captured_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "routine": {
+      "type": "object",
+      "required": ["awake", "focus", "workout"],
+      "additionalProperties": false,
+      "properties": {
+        "awake": {
+          "type": "boolean"
+        },
+        "focus": {
+          "type": ["string", "null"]
+        },
+        "workout": {
+          "type": "string",
+          "enum": ["inactive", "active"]
+        }
+      }
+    },
+    "place": {
+      "type": "object",
+      "required": ["type", "freshness"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["home", "work", "other"]
+        },
+        "freshness": {
+          "type": "string",
+          "enum": ["live", "recent", "stale"]
+        }
+      }
+    },
+    "calendar": {
+      "type": "object",
+      "required": ["in_meeting", "next_meeting_in_min", "freshness"],
+      "additionalProperties": false,
+      "properties": {
+        "in_meeting": {
+          "type": "boolean"
+        },
+        "next_meeting_in_min": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "freshness": {
+          "type": "string",
+          "enum": ["live", "recent", "stale"]
+        }
+      }
+    },
+    "device": {
+      "type": "object",
+      "required": ["battery_percent_bucket", "charging"],
+      "additionalProperties": false,
+      "properties": {
+        "battery_percent_bucket": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "charging": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
+
