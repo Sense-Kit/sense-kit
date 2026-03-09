@@ -1,0 +1,523 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		49F22094CEE3B32A91C4751A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DA7FB93EEBF6770CFC623D0 /* Foundation.framework */; };
+		66AA28CB504651511CD88B77 /* SenseKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4EB4F8498F7AB5F6DE3EF778 /* SenseKitUI */; };
+		670EAFA8C3855C0E0040B1D0 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DA7FB93EEBF6770CFC623D0 /* Foundation.framework */; };
+		921603FA90BF421507A2DB74 /* SenseKitBenchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5809E8954A07FC0C06117A85 /* SenseKitBenchApp.swift */; };
+		CF6C0C84B80253DBB1C87B46 /* SenseKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 6E5F800FB524AEAC4B960B2C /* SenseKitUI */; };
+		D383E3E9196F44895B1B29A3 /* SenseKitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5F08782EE81B3FC5E03A66E /* SenseKitApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		5809E8954A07FC0C06117A85 /* SenseKitBenchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SenseKitBenchApp.swift; path = BenchHarness/SenseKitBenchApp/SenseKitBenchApp.swift; sourceTree = "<group>"; };
+		6DA7FB93EEBF6770CFC623D0 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		73E534B8B5C0243359816E2A /* SenseKitApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SenseKitApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A7D93CCF30D11A477F32EA6E /* SenseKitBenchApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SenseKitBenchApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C5F08782EE81B3FC5E03A66E /* SenseKitApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SenseKitApp.swift; path = App/SenseKitApp/SenseKitApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1D17216CE247FEFD668E5442 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				670EAFA8C3855C0E0040B1D0 /* Foundation.framework in Frameworks */,
+				66AA28CB504651511CD88B77 /* SenseKitUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E9A175268BFAB12F39121E19 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				49F22094CEE3B32A91C4751A /* Foundation.framework in Frameworks */,
+				CF6C0C84B80253DBB1C87B46 /* SenseKitUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1062C768F300303E3FA44F93 /* SenseKitApp */ = {
+			isa = PBXGroup;
+			children = (
+				C5F08782EE81B3FC5E03A66E /* SenseKitApp.swift */,
+			);
+			name = SenseKitApp;
+			sourceTree = "<group>";
+		};
+		2B6B6913A41722BFF8C5D45F /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				6DA7FB93EEBF6770CFC623D0 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		75CB2E5D24C7FDE5BE7D01F1 /* BenchHarness */ = {
+			isa = PBXGroup;
+			children = (
+				8D3D6FA7697861D13F074F69 /* SenseKitBenchApp */,
+			);
+			name = BenchHarness;
+			sourceTree = "<group>";
+		};
+		8D3D6FA7697861D13F074F69 /* SenseKitBenchApp */ = {
+			isa = PBXGroup;
+			children = (
+				5809E8954A07FC0C06117A85 /* SenseKitBenchApp.swift */,
+			);
+			name = SenseKitBenchApp;
+			sourceTree = "<group>";
+		};
+		9D6E4ED057C231F7425FEF2D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				2B6B6913A41722BFF8C5D45F /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		A0A81E3377536F30B753ED5C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				73E534B8B5C0243359816E2A /* SenseKitApp.app */,
+				A7D93CCF30D11A477F32EA6E /* SenseKitBenchApp.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C5746E406FCD3599E7267731 = {
+			isa = PBXGroup;
+			children = (
+				A0A81E3377536F30B753ED5C /* Products */,
+				9D6E4ED057C231F7425FEF2D /* Frameworks */,
+				F532191B3F18DB2FB5021F58 /* App */,
+				75CB2E5D24C7FDE5BE7D01F1 /* BenchHarness */,
+				F3EFDDF3D5721B14908C46E7 /* Packages */,
+			);
+			sourceTree = "<group>";
+		};
+		F3EFDDF3D5721B14908C46E7 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Packages;
+			sourceTree = SOURCE_ROOT;
+		};
+		F532191B3F18DB2FB5021F58 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				1062C768F300303E3FA44F93 /* SenseKitApp */,
+			);
+			name = App;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0D2C6F44A5B9B9FD08C4BA99 /* SenseKitApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6DC0EC10CDE20F5AE20E0E45 /* Build configuration list for PBXNativeTarget "SenseKitApp" */;
+			buildPhases = (
+				725869C08BC1E3193F1DB4F0 /* Sources */,
+				1D17216CE247FEFD668E5442 /* Frameworks */,
+				68C7434E24BF5C3D22666BA6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SenseKitApp;
+			packageProductDependencies = (
+				4EB4F8498F7AB5F6DE3EF778 /* SenseKitUI */,
+			);
+			productName = SenseKitApp;
+			productReference = 73E534B8B5C0243359816E2A /* SenseKitApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		56CA654D1ADCC83DA7234A85 /* SenseKitBenchApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0904B1E28C8F1C6ECBCB53A3 /* Build configuration list for PBXNativeTarget "SenseKitBenchApp" */;
+			buildPhases = (
+				D75B03E3BD92F5B6A586574D /* Sources */,
+				E9A175268BFAB12F39121E19 /* Frameworks */,
+				E8FF68D659A9C872936B6BA2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SenseKitBenchApp;
+			packageProductDependencies = (
+				6E5F800FB524AEAC4B960B2C /* SenseKitUI */,
+			);
+			productName = SenseKitBenchApp;
+			productReference = A7D93CCF30D11A477F32EA6E /* SenseKitBenchApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		60E2FE560E13D95F982DA1FE /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2630;
+			};
+			buildConfigurationList = 7883D592B9CED34E92DCDE2D /* Build configuration list for PBXProject "SenseKitApp" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = C5746E406FCD3599E7267731;
+			minimizedProjectReferenceProxies = 0;
+			packageReferences = (
+				5118AA5D85A15A675B15D092 /* XCLocalSwiftPackageReference "LocalSwiftPackageReference" */,
+				28C5B81C87E85328C26A8F2F /* XCLocalSwiftPackageReference "LocalSwiftPackageReference" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = A0A81E3377536F30B753ED5C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0D2C6F44A5B9B9FD08C4BA99 /* SenseKitApp */,
+				56CA654D1ADCC83DA7234A85 /* SenseKitBenchApp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		68C7434E24BF5C3D22666BA6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E8FF68D659A9C872936B6BA2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		725869C08BC1E3193F1DB4F0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D383E3E9196F44895B1B29A3 /* SenseKitApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D75B03E3BD92F5B6A586574D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				921603FA90BF421507A2DB74 /* SenseKitBenchApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		54FE57FD4F920840AD16B995 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		8481F2E5986ED56B01F6452B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "SenseKit reads minimal calendar context to enrich event snapshots.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "SenseKit reads workout events so it can send workout follow-ups.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "SenseKit uses location to monitor home/work arrival and departure in the background.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SenseKit uses location to improve driving accuracy and detect home/work arrival.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "SenseKit uses motion activity to detect wake and driving state.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.sensekit.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		91363B7B4754049C1F6201BA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "SenseKit reads minimal calendar context to enrich event snapshots.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "SenseKit reads workout events so it can send workout follow-ups.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "SenseKit uses location to monitor home/work arrival and departure in the background.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SenseKit uses location to improve driving accuracy and detect home/work arrival.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "SenseKit uses motion activity to detect wake and driving state.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.sensekit.bench;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		9AFC6D95242C92151358BC01 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "SenseKit reads minimal calendar context to enrich event snapshots.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "SenseKit reads workout events so it can send workout follow-ups.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "SenseKit uses location to monitor home/work arrival and departure in the background.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SenseKit uses location to improve driving accuracy and detect home/work arrival.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "SenseKit uses motion activity to detect wake and driving state.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.sensekit.bench;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		D83FD65D947CBB20F7128376 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "SenseKit reads minimal calendar context to enrich event snapshots.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "SenseKit reads workout events so it can send workout follow-ups.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "SenseKit uses location to monitor home/work arrival and departure in the background.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SenseKit uses location to improve driving accuracy and detect home/work arrival.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "SenseKit uses motion activity to detect wake and driving state.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.sensekit.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		FFB8898AC3B5CF9D2C232038 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0904B1E28C8F1C6ECBCB53A3 /* Build configuration list for PBXNativeTarget "SenseKitBenchApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				91363B7B4754049C1F6201BA /* Release */,
+				9AFC6D95242C92151358BC01 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6DC0EC10CDE20F5AE20E0E45 /* Build configuration list for PBXNativeTarget "SenseKitApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8481F2E5986ED56B01F6452B /* Release */,
+				D83FD65D947CBB20F7128376 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7883D592B9CED34E92DCDE2D /* Build configuration list for PBXProject "SenseKitApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FFB8898AC3B5CF9D2C232038 /* Debug */,
+				54FE57FD4F920840AD16B995 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		28C5B81C87E85328C26A8F2F /* XCLocalSwiftPackageReference "LocalSwiftPackageReference" */ = {
+			isa = XCLocalSwiftPackageReference;
+			path = Packages/SenseKitUI;
+		};
+		5118AA5D85A15A675B15D092 /* XCLocalSwiftPackageReference "LocalSwiftPackageReference" */ = {
+			isa = XCLocalSwiftPackageReference;
+			path = Packages/SenseKitUI;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4EB4F8498F7AB5F6DE3EF778 /* SenseKitUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5118AA5D85A15A675B15D092 /* XCLocalSwiftPackageReference "LocalSwiftPackageReference" */;
+			productName = SenseKitUI;
+		};
+		6E5F800FB524AEAC4B960B2C /* SenseKitUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 28C5B81C87E85328C26A8F2F /* XCLocalSwiftPackageReference "LocalSwiftPackageReference" */;
+			productName = SenseKitUI;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 60E2FE560E13D95F982DA1FE /* Project object */;
+}
