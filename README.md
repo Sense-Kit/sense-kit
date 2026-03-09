@@ -4,7 +4,47 @@ SenseKit is an open-source context runtime for AI agents.
 
 It runs on iPhone, listens to passive sensor signals, turns them into deterministic context events, and delivers those events to OpenClaw over signed HTTPS.
 
+The goal is simple: an AI agent should understand important real-world transitions without asking the user to build Shortcuts automations first.
+
+## Product thesis
+
+SenseKit is:
+
+- passive-first
+- event-first
+- deterministic
+- local-first
+- OpenClaw-first
+
+That means:
+
+- the iPhone app should do useful work right after install and permissions
+- event detection uses fixed weights and thresholds, not ML guesses
+- raw sensor data stays local by default
+- the main integration is an outbound webhook, not a phone-hosted server
+
 This repository is a monorepo. It keeps the iOS runtime, shared wire contracts, OpenClaw integration helpers, and project docs together because they change together.
+
+## What works today
+
+This repo already includes the first serious product scaffolding:
+
+- a deterministic corroboration engine for passive events
+- a Swift runtime package with Motion, Location, HealthKit, power, and calendar collectors
+- SQLite-backed runtime state, queue, and audit log
+- signed webhook delivery for OpenClaw
+- a SwiftUI app shell with onboarding, settings, audit log, and debug timeline scaffolding
+- a separate bench harness target for field testing
+- shared JSON schemas and TypeScript validation helpers
+
+What is not proven yet:
+
+- real-device wake precision
+- real-device driving precision
+- battery impact over normal daily use
+- final onboarding polish
+
+In other words: the architecture and build system are in place, but the passive claims still need bench validation.
 
 ## Repo layout
 
@@ -14,19 +54,6 @@ This repository is a monorepo. It keeps the iOS runtime, shared wire contracts, 
 - `packages/openclaw-plugin`: plugin surface for later OpenClaw integration work
 - `packages/examples`: webhook and QR bootstrap examples
 - `docs`: ADRs, privacy notes, bench plans, and runbooks
-
-## Current status
-
-The passive-first MVP scaffold is in place:
-
-- deterministic corroboration engine
-- SQLite-backed runtime state, queue, and audit log
-- signed OpenClaw webhook delivery
-- SwiftUI onboarding, settings, and debug timeline scaffolding
-- shared JSON schemas and fixtures
-- buildable iOS app and bench harness targets
-
-This is not feature-complete yet. The next serious work is real-device validation for wake, driving, and background behavior.
 
 ## Local setup
 
@@ -63,6 +90,21 @@ Build the iOS app targets:
 xcodebuild -workspace apps/ios/SenseKit.xcworkspace -scheme SenseKitApp -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -workspace apps/ios/SenseKit.xcworkspace -scheme SenseKitBenchApp -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
+
+## First development focus
+
+If you want to help on the MVP, the highest-value work is:
+
+1. passive wake validation on real devices
+2. driving detection validation on real commutes
+3. background wake and delivery reliability
+4. onboarding and debug timeline polish
+
+The best starting docs are:
+
+- `docs/adr`
+- `docs/bench/phase-1a-field-test.md`
+- `docs/runbooks/runtime-bootstrap.md`
 
 ## Open source notes
 
