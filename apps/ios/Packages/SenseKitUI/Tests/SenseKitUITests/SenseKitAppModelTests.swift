@@ -413,6 +413,79 @@ struct SenseKitAppModelTests {
     }
 
     @Test
+    func filteredTimelineEntriesUsesSelectedServiceFilter() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(deviceID: "device-1"),
+                timelineEntries: [
+                    DebugTimelineEntry(createdAt: Date(), category: .signal, message: "Received raw motion activity walking"),
+                    DebugTimelineEntry(createdAt: Date(), category: .evaluation, message: "Location collector started"),
+                    DebugTimelineEntry(createdAt: Date(), category: .evaluation, message: "Saved runtime configuration")
+                ]
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        model.selectedTimelineServiceFilter = .location
+
+        #expect(model.filteredTimelineEntries.count == 1)
+        #expect(model.filteredTimelineEntries.first?.message == "Location collector started")
+    }
+
+    @Test
+    func availableTimelineServiceFiltersIncludeSeenServices() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(deviceID: "device-1"),
+                timelineEntries: [
+                    DebugTimelineEntry(createdAt: Date(), category: .signal, message: "Received raw motion activity walking"),
+                    DebugTimelineEntry(createdAt: Date(), category: .evaluation, message: "Location collector started")
+                ]
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+
+        #expect(model.availableTimelineServiceFilters == [.all, .motion, .location])
+    }
+
+    @Test
+    func filteredAuditEntriesUsesSelectedEventType() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(deviceID: "device-1"),
+                auditEntries: [
+                    AuditLogEntry(
+                        createdAt: Date(),
+                        eventType: "arrived_home",
+                        destination: "https://example.ts.net/hooks/sensekit",
+                        status: .delivered,
+                        payloadSummary: "HTTP 200",
+                        retryCount: 0
+                    ),
+                    AuditLogEntry(
+                        createdAt: Date(),
+                        eventType: "motion_activity_observed",
+                        destination: "https://example.ts.net/hooks/sensekit",
+                        status: .delivered,
+                        payloadSummary: "HTTP 200",
+                        retryCount: 0
+                    )
+                ]
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        model.selectedAuditEventType = "arrived_home"
+
+        #expect(model.filteredAuditEntries.count == 1)
+        #expect(model.filteredAuditEntries.first?.eventType == "arrived_home")
+    }
+
+    @Test
     func startupStatusTextExplainsCurrentLaunchState() async throws {
         let service = FakeSenseKitAppService(
             initialState: SenseKitLoadedState(configuration: RuntimeConfiguration(deviceID: "device-1"))
@@ -464,6 +537,17 @@ struct EntryCopyFormatterTests {
         #expect(text.contains("category: event"))
         #expect(text.contains("message: Manual test event driving_started"))
         #expect(text.contains("payload: score=0.70"))
+    }
+
+    @Test
+    func timelineServiceFilterInfersLocationFromLocationMessages() {
+        let entry = DebugTimelineEntry(
+            createdAt: Date(timeIntervalSince1970: 1_775_520_000),
+            category: .evaluation,
+            message: "Location collector started"
+        )
+
+        #expect(TimelineServiceFilter.inferredService(for: entry) == .location)
     }
 }
 

@@ -23,6 +23,8 @@ public final class SenseKitAppModel {
     public var locationCollectorStatus: LocationCollectorStatus
     public var timelineEntries: [DebugTimelineEntry]
     public var auditEntries: [AuditLogEntry]
+    public var selectedTimelineServiceFilter: TimelineServiceFilter
+    public var selectedAuditEventType: String?
     public var endpointURLText: String
     public var bearerToken: String
     public var hmacSecret: String
@@ -50,6 +52,8 @@ public final class SenseKitAppModel {
         locationCollectorStatus: LocationCollectorStatus = .inactive,
         timelineEntries: [DebugTimelineEntry] = [],
         auditEntries: [AuditLogEntry] = [],
+        selectedTimelineServiceFilter: TimelineServiceFilter = .all,
+        selectedAuditEventType: String? = nil,
         endpointURLText: String = "",
         bearerToken: String = "",
         hmacSecret: String = "",
@@ -73,6 +77,8 @@ public final class SenseKitAppModel {
         self.locationCollectorStatus = locationCollectorStatus
         self.timelineEntries = timelineEntries
         self.auditEntries = auditEntries
+        self.selectedTimelineServiceFilter = selectedTimelineServiceFilter
+        self.selectedAuditEventType = selectedAuditEventType
         self.endpointURLText = endpointURLText
         self.bearerToken = bearerToken
         self.hmacSecret = hmacSecret
@@ -312,6 +318,25 @@ public final class SenseKitAppModel {
         return model
     }
 
+    public var filteredTimelineEntries: [DebugTimelineEntry] {
+        timelineEntries.filter { selectedTimelineServiceFilter.includes($0) }
+    }
+
+    public var availableTimelineServiceFilters: [TimelineServiceFilter] {
+        TimelineServiceFilter.availableFilters(for: timelineEntries)
+    }
+
+    public var filteredAuditEntries: [AuditLogEntry] {
+        guard let selectedAuditEventType, !selectedAuditEventType.isEmpty else {
+            return auditEntries
+        }
+        return auditEntries.filter { $0.eventType == selectedAuditEventType }
+    }
+
+    public var availableAuditEventTypes: [String] {
+        AuditEventFilter.availableEventTypes(for: auditEntries)
+    }
+
     public static func live() -> SenseKitAppModel {
         do {
             return SenseKitAppModel(service: try SenseKitAppEnvironment.makeLiveService())
@@ -333,6 +358,14 @@ public final class SenseKitAppModel {
         timelineEntries = state.timelineEntries
         auditEntries = state.auditEntries
         connectionStatus = Self.connectionStatus(for: state.configuration)
+
+        if !availableTimelineServiceFilters.contains(selectedTimelineServiceFilter) {
+            selectedTimelineServiceFilter = .all
+        }
+
+        if let selectedAuditEventType, !availableAuditEventTypes.contains(selectedAuditEventType) {
+            self.selectedAuditEventType = nil
+        }
 
         guard !preserveDraftConfiguration else {
             return

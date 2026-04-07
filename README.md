@@ -25,6 +25,39 @@ That means:
 
 This repository is a monorepo. It keeps the iOS runtime, shared wire contracts, OpenClaw integration helpers, and project docs together because they change together.
 
+## What data gets sent to OpenClaw
+
+SenseKit does not send a raw dump of everything your phone sees.
+
+What currently goes out:
+
+- one event at a time, for example `motion_activity_observed` or `arrived_home`
+- the event time
+- a confidence score
+- short reasons like `motion.primary.walking` or `location.region_enter_home`
+- a small snapshot with coarse state like:
+  - place type: `home`, `work`, or `other`
+  - routine flags like `awake` or `workout`
+  - minimal calendar booleans
+  - battery bucket and charging state
+- a policy block that tells OpenClaw which response modes are safe
+
+What stays local by default:
+
+- exact GPS coordinates
+- raw motion history
+- raw HealthKit values
+- calendar titles and attendees
+- local debug traces
+- tokens and secrets
+
+In the current bench app:
+
+- Motion is currently forwarded as coarse activity events like `walking`, `running`, `stationary`, or `automotive`
+- Home / Work is currently forwarded as place events like `arrived_home`
+
+So the phone sends structured context events, not a full sensor stream.
+
 ## What works today
 
 This repo already includes the first serious product scaffolding:
@@ -100,6 +133,18 @@ For personal testing, keep OpenClaw private and use Tailscale instead of exposin
 - Use a separate `hooks.token` for SenseKit hooks. Do not reuse `gateway.auth.token`.
 - Treat hook payloads as untrusted content even when they come from systems you control. Keep the receiving agent narrow and low-privilege.
 - A public hook-only reverse proxy or a small verifier relay can come later, but they are not the safest first deployment.
+
+## Debug Timeline vs Audit Log
+
+- `Debug Timeline` is the local notebook. It shows what the phone sensed and what the local runtime did with it.
+- `Audit Log` is the delivery ledger. It shows whether a finished outbound event was queued, delivered, failed, or expired on the way to OpenClaw.
+
+That means:
+
+- use `Debug Timeline` when you want to debug Motion, Location, Settings, or rule evaluation
+- use `Audit Log` when you want to know whether OpenClaw actually received the event
+
+Location events are included in Audit once they become real outbound events. For example, `arrived_home` should show up there after it is queued and delivered.
 
 ## First development focus
 

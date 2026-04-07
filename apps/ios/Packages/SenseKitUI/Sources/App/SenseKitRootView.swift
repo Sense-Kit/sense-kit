@@ -9,6 +9,7 @@ public struct SenseKitRootView: View {
     }
 
     public var body: some View {
+        @Bindable var bindableModel = model
         Group {
             if model.showsStartupScreen {
                 StartupLoadingView(
@@ -31,14 +32,22 @@ public struct SenseKitRootView: View {
                     }
 
                     NavigationStack {
-                        DebugTimelineView(entries: model.timelineEntries)
+                        DebugTimelineView(
+                            entries: model.filteredTimelineEntries,
+                            availableFilters: model.availableTimelineServiceFilters,
+                            selectedFilter: $bindableModel.selectedTimelineServiceFilter
+                        )
                     }
                     .tabItem {
                         Label("Timeline", systemImage: "list.bullet.rectangle")
                     }
 
                     NavigationStack {
-                        AuditLogView(entries: model.auditEntries)
+                        AuditLogView(
+                            entries: model.filteredAuditEntries,
+                            availableEventTypes: model.availableAuditEventTypes,
+                            selectedEventType: $bindableModel.selectedAuditEventType
+                        )
                     }
                     .tabItem {
                         Label("Audit", systemImage: "doc.text.magnifyingglass")

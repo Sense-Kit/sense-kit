@@ -18,6 +18,7 @@ enum EntryCopyFormatter {
         var lines = [
             "type: timeline",
             "created_at: \(timestamp(entry.createdAt))",
+            "service: \(TimelineServiceFilter.inferredService(for: entry).rawValue)",
             "category: \(entry.category.rawValue)",
             "message: \(entry.message)"
         ]
