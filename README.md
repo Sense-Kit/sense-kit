@@ -1,92 +1,93 @@
 # SenseKit
 
-SenseKit is an open-source context runtime for AI agents.
+[![CI](https://github.com/Sense-Kit/sense-kit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Sense-Kit/sense-kit/actions/workflows/ci.yml)
 
-It runs on iPhone, listens to passive sensor signals, turns them into deterministic context events, and delivers those events to OpenClaw over signed HTTPS.
+SenseKit is an open-source iPhone context runtime for AI agents.
 
-The goal is simple: an AI agent should understand important real-world transitions without asking the user to build Shortcuts automations first.
+It listens to passive on-device signals like motion, location, workouts, power state, and lightweight calendar context, turns those signals into deterministic events, and delivers signed HTTPS payloads to OpenClaw.
 
-## Product thesis
+The project exists to solve one practical problem: an agent cannot act intelligently around the real world if the user has to build a pile of Shortcuts automations before anything works. SenseKit aims to be useful right after install and permission approval.
 
-SenseKit is:
+## Why SenseKit
 
-- passive-first
-- event-first
-- deterministic
-- local-first
-- OpenClaw-first
+- `Passive-first`: useful events should be possible without manual Shortcuts setup.
+- `Deterministic`: the runtime uses explicit rules, weights, and thresholds instead of opaque ML guesses.
+- `Local-first`: raw sensor data stays on the phone by default.
+- `Policy-aware`: each outbound event includes the safety context OpenClaw needs to react responsibly.
+- `OpenClaw-first`: the primary integration path is signed outbound delivery, not hosting a server on the phone.
 
-That means:
+## Current status
 
-- the iPhone app should do useful work right after install and permissions
-- event detection uses fixed weights and thresholds, not ML guesses
-- raw sensor data stays local by default
-- the main integration is an outbound webhook, not a phone-hosted server
+SenseKit is early, opinionated, and real.
 
-This repository is a monorepo. It keeps the iOS runtime, shared wire contracts, OpenClaw integration helpers, and project docs together because they change together.
-
-## What data gets sent to OpenClaw
-
-SenseKit does not send a raw dump of everything your phone sees.
-
-What currently goes out:
-
-- one event at a time, for example `motion_activity_observed` or `arrived_home`
-- the event time
-- a confidence score
-- short reasons like `motion.primary.walking` or `location.region_enter_home`
-- a small snapshot with coarse state like:
-  - place type: `home`, `work`, or `other`
-  - routine flags like `awake` or `workout`
-  - minimal calendar booleans
-  - battery bucket and charging state
-- a policy block that tells OpenClaw which response modes are safe
-
-What stays local by default:
-
-- exact GPS coordinates
-- raw motion history
-- raw HealthKit values
-- calendar titles and attendees
-- local debug traces
-- tokens and secrets
-
-In the current bench app:
-
-- Motion is currently forwarded as coarse activity events like `walking`, `running`, `stationary`, or `automotive`
-- Home / Work is currently forwarded as place events like `arrived_home`
-
-So the phone sends structured context events, not a full sensor stream.
-
-## What works today
-
-This repo already includes the first serious product scaffolding:
+What already exists in this repository:
 
 - a deterministic corroboration engine for passive events
 - a Swift runtime package with Motion, Location, HealthKit, power, and calendar collectors
-- SQLite-backed runtime state, queue, and audit log
+- SQLite-backed runtime state, queueing, and audit logging
 - signed webhook delivery for OpenClaw
 - a SwiftUI app shell with onboarding, settings, audit log, and debug timeline scaffolding
 - a separate bench harness target for field testing
 - shared JSON schemas and TypeScript validation helpers
 
-What is not proven yet:
+What is still being validated on real devices:
 
-- real-device wake precision
-- real-device driving precision
+- wake detection precision
+- driving detection precision
 - battery impact over normal daily use
+- background wake and delivery reliability
 - final onboarding polish
 
-In other words: the architecture and build system are in place, but the passive claims still need bench validation.
+If you are evaluating the project, start with:
 
-## Repo layout
+- [SPEC.md](SPEC.md)
+- [docs/README.md](docs/README.md)
+- [docs/bench/phase-1a-field-test.md](docs/bench/phase-1a-field-test.md)
+- [docs/runbooks/runtime-bootstrap.md](docs/runbooks/runtime-bootstrap.md)
 
-- `apps/ios`: iPhone app, bench harness, Swift runtime package, and SwiftUI package
-- `packages/contracts`: JSON schemas, fixtures, and TypeScript validation helpers
-- `packages/openclaw-skill`: example skill packaging for OpenClaw
-- `packages/openclaw-plugin`: plugin surface for later OpenClaw integration work
-- `packages/examples`: webhook and QR bootstrap examples
-- `docs`: ADRs, privacy notes, bench plans, and runbooks
+## Architecture at a glance
+
+```mermaid
+flowchart LR
+    A["On-device collectors<br/>Motion, location, HealthKit,<br/>power, calendar"] --> B["Deterministic corroboration engine"]
+    B --> C["Context event<br/>confidence, reasons, policy"]
+    C --> D["Signed outbound queue"]
+    D --> E["OpenClaw webhook"]
+```
+
+SenseKit is a runtime, not a data exhaust pipeline. The phone keeps the raw sensor layer local and only sends small, structured events once the runtime is confident something meaningful happened.
+
+## What leaves the phone
+
+SenseKit does not send a raw dump of everything the device sees.
+
+| Sent to OpenClaw | Stays local by default |
+| --- | --- |
+| One event at a time, such as `motion_activity_observed` or `arrived_home` | Exact GPS coordinates |
+| Event timestamp | Raw motion history |
+| Confidence score | Raw HealthKit values |
+| Short reason codes like `motion.primary.walking` | Calendar titles and attendees |
+| A small snapshot with coarse state | Local debug traces |
+| A policy block describing safe response modes | Tokens and secrets |
+
+In the current bench app, motion is forwarded as coarse activity events such as `walking`, `running`, `stationary`, or `automotive`, and place transitions are forwarded as events such as `arrived_home`.
+
+## Repository guide
+
+- [`apps/ios`](apps/ios): the iPhone app, bench harness, runtime package, and SwiftUI package
+- [`packages/contracts`](packages/contracts): JSON schemas, fixtures, and TypeScript validation helpers
+- [`packages/openclaw-skill`](packages/openclaw-skill): example skill packaging for OpenClaw
+- [`packages/openclaw-plugin`](packages/openclaw-plugin): plugin surface for later OpenClaw integration work
+- [`packages/examples`](packages/examples): QR bootstrap and hook configuration examples
+- [`docs`](docs): ADRs, privacy notes, release notes, runbooks, and field-test plans
+
+Documentation entry points:
+
+- [docs/README.md](docs/README.md)
+- [CHANGELOG.md](CHANGELOG.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [SECURITY.md](SECURITY.md)
+- [SUPPORT.md](SUPPORT.md)
 
 ## Local setup
 
@@ -124,46 +125,30 @@ xcodebuild -workspace apps/ios/SenseKit.xcworkspace -scheme SenseKitApp -sdk iph
 xcodebuild -workspace apps/ios/SenseKit.xcworkspace -scheme SenseKitBenchApp -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
 
-## OpenClaw connectivity and security
+## OpenClaw connectivity
 
 For personal testing, keep OpenClaw private and use Tailscale instead of exposing the raw Gateway to the public internet.
 
-- Recommended first setup: OpenClaw stays on `gateway.bind: "loopback"` and is exposed privately with Tailscale Serve.
-- Do not expose the raw OpenClaw Gateway port publicly just to receive SenseKit hooks. The Gateway is a larger surface than one webhook path.
+- Keep OpenClaw on `gateway.bind: "loopback"` and expose it privately with Tailscale Serve.
 - Use a separate `hooks.token` for SenseKit hooks. Do not reuse `gateway.auth.token`.
-- Treat hook payloads as untrusted content even when they come from systems you control. Keep the receiving agent narrow and low-privilege.
-- A public hook-only reverse proxy or a small verifier relay can come later, but they are not the safest first deployment.
-- If OpenClaw returns `hook mapping failed`, remove any custom `transform` block first and test with the example mapping unchanged. SenseKit sends snake_case fields like `event.event_id`, `event.event_type`, and `snapshot.place.type`.
+- Treat hook payloads as untrusted content even when they come from systems you control.
+- If OpenClaw returns `hook mapping failed`, remove any custom `transform` block first and test with the example mapping unchanged.
 
-## Debug Timeline vs Audit Log
+## Contribution focus
 
-- `Debug Timeline` is the local notebook. It shows what the phone sensed and what the local runtime did with it.
-- `Audit Log` is the delivery ledger. It shows whether a finished outbound event was queued, delivered, failed, or expired on the way to OpenClaw.
-
-That means:
-
-- use `Debug Timeline` when you want to debug Motion, Location, Settings, or rule evaluation
-- use `Audit Log` when you want to know whether OpenClaw actually received the event
-
-Location events are included in Audit once they become real outbound events. For example, `arrived_home` should show up there after it is queued and delivered.
-
-## First development focus
-
-If you want to help on the MVP, the highest-value work is:
+The highest-value work for the current milestone is:
 
 1. passive wake validation on real devices
 2. driving detection validation on real commutes
 3. background wake and delivery reliability
 4. onboarding and debug timeline polish
 
-The best starting docs are:
+Contributions are welcome. If your change affects architecture, add or update an ADR in [`docs/adr`](docs/adr).
 
-- `docs/adr`
-- `docs/bench/phase-1a-field-test.md`
-- `docs/runbooks/runtime-bootstrap.md`
-
-## Open source notes
+## Project standards
 
 - License: Apache-2.0
-- Contributions are welcome. See `CONTRIBUTING.md`
-- Architecture decisions live in `docs/adr`
+- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- Security policy: [SECURITY.md](SECURITY.md)
+- Support guide: [SUPPORT.md](SUPPORT.md)

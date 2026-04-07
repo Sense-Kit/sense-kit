@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+Documentation and repository polish:
+
+- rewrote the top-level README to present SenseKit more clearly as an open-source project
+- added a docs index for easier navigation
+- added security and support policies
+- improved GitHub issue and pull request guidance for contributors
+
 ## v0.1.0 - 2026-03-09
 
 First public scaffold release.

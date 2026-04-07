@@ -1,1 +1,8 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Documentation and setup help
+    url: https://github.com/Sense-Kit/sense-kit/blob/main/docs/README.md
+    about: Start here for the spec, runbooks, ADRs, and privacy notes before opening an issue.
+  - name: Security reporting
+    url: https://github.com/Sense-Kit/sense-kit/security/policy
+    about: Please report security and privacy issues privately through the security policy.
