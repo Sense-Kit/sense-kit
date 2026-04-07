@@ -74,6 +74,11 @@ public enum FeatureFlag: String, Codable, CaseIterable, Sendable {
     case workoutFollowUp = "workout_follow_up"
 }
 
+public enum PlaceSharingMode: String, Codable, CaseIterable, Sendable {
+    case labelsOnly = "labels_only"
+    case preciseCoordinates = "precise_coordinates"
+}
+
 public enum JSONValue: Codable, Equatable, Sendable {
     case string(String)
     case number(Double)
@@ -225,8 +230,25 @@ public struct ContextSnapshot: Codable, Equatable, Sendable {
     }
 
     public struct Place: Codable, Equatable, Sendable {
+        public struct Coordinate: Codable, Equatable, Sendable {
+            public var latitude: Double
+            public var longitude: Double
+
+            public init(latitude: Double, longitude: Double) {
+                self.latitude = latitude
+                self.longitude = longitude
+            }
+        }
+
         public var type: PlaceType
         public var freshness: SnapshotFreshness
+        public var coordinate: Coordinate?
+
+        public init(type: PlaceType, freshness: SnapshotFreshness, coordinate: Coordinate? = nil) {
+            self.type = type
+            self.freshness = freshness
+            self.coordinate = coordinate
+        }
     }
 
     public struct Calendar: Codable, Equatable, Sendable {
@@ -287,6 +309,17 @@ public struct ContextSnapshot: Codable, Equatable, Sendable {
     }
 
     public func withHealth(_ health: HealthSnapshot) -> ContextSnapshot {
+        ContextSnapshot(
+            capturedAt: capturedAt,
+            routine: routine,
+            place: place,
+            calendar: calendar,
+            device: device,
+            health: health
+        )
+    }
+
+    public func withPlace(_ place: Place) -> ContextSnapshot {
         ContextSnapshot(
             capturedAt: capturedAt,
             routine: routine,
@@ -478,6 +511,7 @@ public struct RuntimeConfiguration: Codable, Equatable, Sendable {
     public var wakeWindowStartHour: Int
     public var wakeWindowEndHour: Int
     public var drivingLocationBoostEnabled: Bool
+    public var placeSharingMode: PlaceSharingMode
     public var homeRegion: RegionConfiguration?
     public var workRegion: RegionConfiguration?
     public var openClaw: OpenClawConfiguration?
@@ -488,6 +522,7 @@ public struct RuntimeConfiguration: Codable, Equatable, Sendable {
         wakeWindowStartHour: Int = 4,
         wakeWindowEndHour: Int = 11,
         drivingLocationBoostEnabled: Bool = false,
+        placeSharingMode: PlaceSharingMode = .labelsOnly,
         homeRegion: RegionConfiguration? = nil,
         workRegion: RegionConfiguration? = nil,
         openClaw: OpenClawConfiguration? = nil
@@ -497,9 +532,48 @@ public struct RuntimeConfiguration: Codable, Equatable, Sendable {
         self.wakeWindowStartHour = wakeWindowStartHour
         self.wakeWindowEndHour = wakeWindowEndHour
         self.drivingLocationBoostEnabled = drivingLocationBoostEnabled
+        self.placeSharingMode = placeSharingMode
         self.homeRegion = homeRegion
         self.workRegion = workRegion
         self.openClaw = openClaw
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case deviceID
+        case enabledFeatures
+        case wakeWindowStartHour
+        case wakeWindowEndHour
+        case drivingLocationBoostEnabled
+        case placeSharingMode
+        case homeRegion
+        case workRegion
+        case openClaw
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        deviceID = try container.decode(String.self, forKey: .deviceID)
+        enabledFeatures = try container.decodeIfPresent(Set<FeatureFlag>.self, forKey: .enabledFeatures) ?? []
+        wakeWindowStartHour = try container.decodeIfPresent(Int.self, forKey: .wakeWindowStartHour) ?? 4
+        wakeWindowEndHour = try container.decodeIfPresent(Int.self, forKey: .wakeWindowEndHour) ?? 11
+        drivingLocationBoostEnabled = try container.decodeIfPresent(Bool.self, forKey: .drivingLocationBoostEnabled) ?? false
+        placeSharingMode = try container.decodeIfPresent(PlaceSharingMode.self, forKey: .placeSharingMode) ?? .labelsOnly
+        homeRegion = try container.decodeIfPresent(RegionConfiguration.self, forKey: .homeRegion)
+        workRegion = try container.decodeIfPresent(RegionConfiguration.self, forKey: .workRegion)
+        openClaw = try container.decodeIfPresent(OpenClawConfiguration.self, forKey: .openClaw)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(deviceID, forKey: .deviceID)
+        try container.encode(enabledFeatures, forKey: .enabledFeatures)
+        try container.encode(wakeWindowStartHour, forKey: .wakeWindowStartHour)
+        try container.encode(wakeWindowEndHour, forKey: .wakeWindowEndHour)
+        try container.encode(drivingLocationBoostEnabled, forKey: .drivingLocationBoostEnabled)
+        try container.encode(placeSharingMode, forKey: .placeSharingMode)
+        try container.encodeIfPresent(homeRegion, forKey: .homeRegion)
+        try container.encodeIfPresent(workRegion, forKey: .workRegion)
+        try container.encodeIfPresent(openClaw, forKey: .openClaw)
     }
 }
 

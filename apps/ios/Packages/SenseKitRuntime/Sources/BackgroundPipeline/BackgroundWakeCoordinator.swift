@@ -215,7 +215,8 @@ public actor BackgroundWakeCoordinator {
         payloadSummary: String
     ) async throws -> ProcessingResult {
         let state = try await store.loadRuntimeState()
-        let snapshot = await snapshotEnricher.buildSnapshot(at: clock.now(), state: state)
+        let baseSnapshot = await snapshotEnricher.buildSnapshot(at: clock.now(), state: state)
+        let snapshot = applyPlaceSharing(to: baseSnapshot, configuration: configuration)
         let policy = policyEngine.decide(event: event, snapshot: snapshot)
         let envelope = SenseKitEventEnvelope(
             deviceID: configuration.deviceID,
@@ -253,6 +254,41 @@ public actor BackgroundWakeCoordinator {
         let offsets: [TimeInterval] = [0, 5, 30, 300, 1_800, 7_200, 43_200]
         let index = min(attempt, offsets.count - 1)
         return date.addingTimeInterval(offsets[index])
+    }
+
+    private func applyPlaceSharing(to snapshot: ContextSnapshot, configuration: RuntimeConfiguration) -> ContextSnapshot {
+        guard configuration.placeSharingMode == .preciseCoordinates else {
+            return snapshot
+        }
+
+        let coordinate: ContextSnapshot.Place.Coordinate?
+        switch snapshot.place.type {
+        case .home:
+            coordinate = placeCoordinate(from: configuration.homeRegion)
+        case .work:
+            coordinate = placeCoordinate(from: configuration.workRegion)
+        case .other:
+            coordinate = nil
+        }
+
+        guard let coordinate else {
+            return snapshot
+        }
+
+        var place = snapshot.place
+        place.coordinate = coordinate
+        return snapshot.withPlace(place)
+    }
+
+    private func placeCoordinate(from region: RegionConfiguration?) -> ContextSnapshot.Place.Coordinate? {
+        guard let region else {
+            return nil
+        }
+
+        return ContextSnapshot.Place.Coordinate(
+            latitude: region.latitude,
+            longitude: region.longitude
+        )
     }
 }
 

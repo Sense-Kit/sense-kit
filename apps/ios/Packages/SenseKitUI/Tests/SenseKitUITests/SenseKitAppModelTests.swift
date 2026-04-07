@@ -12,6 +12,7 @@ struct SenseKitAppModelTests {
                 deviceID: "device-1",
                 enabledFeatures: [.wakeBrief, .drivingMode],
                 drivingLocationBoostEnabled: true,
+                placeSharingMode: .preciseCoordinates,
                 openClaw: OpenClawConfiguration(
                     endpointURL: URL(string: "https://example.ts.net/hooks/sensekit")!,
                     bearerToken: "token-1",
@@ -46,6 +47,7 @@ struct SenseKitAppModelTests {
         #expect(model.bearerToken == "token-1")
         #expect(model.hmacSecret == "secret-1")
         #expect(model.drivingLocationBoostEnabled)
+        #expect(model.placeSharingMode == .preciseCoordinates)
         #expect(model.wakeCollectorStatus == .running)
         #expect(model.wakeCollectorStatusText == "Running")
         #expect(model.locationCollectorStatus == .running)
@@ -114,6 +116,48 @@ struct SenseKitAppModelTests {
         #expect(model.drivingLocationBoostEnabled)
         #expect(savedConfiguration?.drivingLocationBoostEnabled == true)
         #expect(model.feedback?.message == "Driving location boost saved.")
+    }
+
+    @Test
+    func applySetupSelectionsPersistsBuilderChoices() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(deviceID: "device-1")
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+        await model.load()
+
+        await model.applySetupSelections(
+            motionAndRoutineEnabled: true,
+            placesEnabled: true,
+            workoutsEnabled: false
+        )
+
+        let savedConfiguration = await service.savedConfigurations.last
+        #expect(savedConfiguration?.enabledFeatures.contains(.wakeBrief) == true)
+        #expect(savedConfiguration?.enabledFeatures.contains(.drivingMode) == true)
+        #expect(savedConfiguration?.enabledFeatures.contains(.homeWork) == true)
+        #expect(savedConfiguration?.enabledFeatures.contains(.workoutFollowUp) == false)
+        #expect(model.feedback?.message == "Setup choices saved.")
+    }
+
+    @Test
+    func setPlaceSharingModePersistsConfigurationImmediately() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(deviceID: "device-1")
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+        await model.load()
+
+        await model.setPlaceSharingMode(.preciseCoordinates)
+
+        let savedConfiguration = await service.savedConfigurations.last
+        #expect(model.placeSharingMode == .preciseCoordinates)
+        #expect(savedConfiguration?.placeSharingMode == .preciseCoordinates)
+        #expect(model.feedback?.message == "Place sharing updated.")
     }
 
     @Test
@@ -212,6 +256,21 @@ struct SenseKitAppModelTests {
         #expect(model.connectionStatus == "Configure OpenClaw first")
         #expect(model.feedback?.style == .error)
         #expect(model.feedback?.message == "Save the OpenClaw connection before sending a test event.")
+    }
+
+    @Test
+    func openClawSetupGuideAppearsWhenConnectionIsMissing() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(configuration: RuntimeConfiguration(deviceID: "device-1"))
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+
+        #expect(model.showsOpenClawSetupGuide)
+        #expect(model.openClawSetupSteps.count == 3)
+        #expect(model.openClawSetupSteps[0].contains("OpenClaw JSON"))
+        #expect(model.openClawSetupSteps[1].contains("Tailscale"))
     }
 
     @Test

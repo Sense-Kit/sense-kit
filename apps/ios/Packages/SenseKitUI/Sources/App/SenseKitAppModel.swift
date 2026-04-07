@@ -19,6 +19,7 @@ public final class SenseKitAppModel {
     public var selectedFeatures: Set<FeatureFlag>
     public var connectionStatus: String
     public var drivingLocationBoostEnabled: Bool
+    public var placeSharingMode: PlaceSharingMode
     public var wakeCollectorStatus: WakeCollectorStatus
     public var locationCollectorStatus: LocationCollectorStatus
     public var timelineEntries: [DebugTimelineEntry]
@@ -48,6 +49,7 @@ public final class SenseKitAppModel {
         selectedFeatures: Set<FeatureFlag> = [.wakeBrief, .drivingMode],
         connectionStatus: String = "Not connected",
         drivingLocationBoostEnabled: Bool = false,
+        placeSharingMode: PlaceSharingMode = .labelsOnly,
         wakeCollectorStatus: WakeCollectorStatus = .inactive,
         locationCollectorStatus: LocationCollectorStatus = .inactive,
         timelineEntries: [DebugTimelineEntry] = [],
@@ -73,6 +75,7 @@ public final class SenseKitAppModel {
         self.selectedFeatures = selectedFeatures
         self.connectionStatus = connectionStatus
         self.drivingLocationBoostEnabled = drivingLocationBoostEnabled
+        self.placeSharingMode = placeSharingMode
         self.wakeCollectorStatus = wakeCollectorStatus
         self.locationCollectorStatus = locationCollectorStatus
         self.timelineEntries = timelineEntries
@@ -164,6 +167,7 @@ public final class SenseKitAppModel {
         var nextConfiguration = configuration
         nextConfiguration.enabledFeatures = selectedFeatures
         nextConfiguration.drivingLocationBoostEnabled = drivingLocationBoostEnabled
+        nextConfiguration.placeSharingMode = placeSharingMode
 
         if endpoint.isEmpty && bearer.isEmpty && secret.isEmpty {
             nextConfiguration.openClaw = nil
@@ -239,6 +243,36 @@ public final class SenseKitAppModel {
     public func setDrivingLocationBoostEnabled(_ enabled: Bool) async {
         drivingLocationBoostEnabled = enabled
         await persistRuntimeConfigurationDraft(successMessage: "Driving location boost saved.")
+    }
+
+    public func applySetupSelections(
+        motionAndRoutineEnabled: Bool,
+        placesEnabled: Bool,
+        workoutsEnabled: Bool
+    ) async {
+        var nextFeatures = selectedFeatures
+        nextFeatures.subtract([.wakeBrief, .drivingMode, .homeWork, .workoutFollowUp])
+
+        if motionAndRoutineEnabled {
+            nextFeatures.insert(.wakeBrief)
+            nextFeatures.insert(.drivingMode)
+        }
+
+        if placesEnabled {
+            nextFeatures.insert(.homeWork)
+        }
+
+        if workoutsEnabled {
+            nextFeatures.insert(.workoutFollowUp)
+        }
+
+        selectedFeatures = nextFeatures
+        await persistRuntimeConfigurationDraft(successMessage: "Setup choices saved.")
+    }
+
+    public func setPlaceSharingMode(_ mode: PlaceSharingMode) async {
+        placeSharingMode = mode
+        await persistRuntimeConfigurationDraft(successMessage: "Place sharing updated.")
     }
 
     public func setHomeRegionFromCurrentLocation() async {
@@ -373,6 +407,7 @@ public final class SenseKitAppModel {
 
         selectedFeatures = state.configuration.enabledFeatures
         drivingLocationBoostEnabled = state.configuration.drivingLocationBoostEnabled
+        placeSharingMode = state.configuration.placeSharingMode
         endpointURLText = state.configuration.openClaw?.endpointURL.absoluteString ?? ""
         bearerToken = state.configuration.openClaw?.bearerToken ?? ""
         hmacSecret = state.configuration.openClaw?.hmacSecret ?? ""
@@ -498,6 +533,34 @@ public final class SenseKitAppModel {
         Self.regionSummary(configuration.workRegion)
     }
 
+    public var motionAndRoutineSelectionEnabled: Bool {
+        selectedFeatures.contains(.wakeBrief) || selectedFeatures.contains(.drivingMode)
+    }
+
+    public var placesSelectionEnabled: Bool {
+        selectedFeatures.contains(.homeWork)
+    }
+
+    public var workoutsSelectionEnabled: Bool {
+        selectedFeatures.contains(.workoutFollowUp)
+    }
+
+    public var showsOpenClawSetupGuide: Bool {
+        configuration.openClaw == nil
+    }
+
+    public var openClawSetupSteps: [String] {
+        guard showsOpenClawSetupGuide else {
+            return []
+        }
+
+        return [
+            "Add a SenseKit hook to your OpenClaw JSON and create a separate hooks token for it.",
+            "Keep OpenClaw private and expose it with Tailscale Serve instead of opening the raw Gateway port to the internet.",
+            "Paste the Tailscale hook URL, the hook token, and the SenseKit HMAC secret below, then save the connection."
+        ]
+    }
+
     public var showsStartupScreen: Bool {
         !hasLoaded
     }
@@ -525,6 +588,10 @@ public final class SenseKitAppModel {
         }
 
         if drivingLocationBoostEnabled != configuration.drivingLocationBoostEnabled {
+            return true
+        }
+
+        if placeSharingMode != configuration.placeSharingMode {
             return true
         }
 
@@ -639,6 +706,7 @@ public final class SenseKitAppModel {
         var nextConfiguration = configuration
         nextConfiguration.enabledFeatures = selectedFeatures
         nextConfiguration.drivingLocationBoostEnabled = drivingLocationBoostEnabled
+        nextConfiguration.placeSharingMode = placeSharingMode
 
         if var homeRegion = nextConfiguration.homeRegion {
             homeRegion.radiusMeters = homeRadiusMeters

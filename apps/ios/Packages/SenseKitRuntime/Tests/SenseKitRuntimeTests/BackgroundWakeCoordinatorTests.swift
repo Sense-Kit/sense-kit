@@ -228,6 +228,117 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
         XCTAssertEqual(deliveredEnvelope.policy.allowedActions, ["update_context"])
     }
 
+    func testSendTestEventIncludesHomeCoordinateWhenPrecisePlaceSharingIsEnabled() async throws {
+        let clock = FixedClock(currentDate: date(hour: 18, minute: 10))
+        let store = TestRuntimeStore()
+        try await store.saveRuntimeState(RuntimeState(currentPlace: .home))
+        let settingsStore = InMemorySettingsStore(
+            configuration: RuntimeConfiguration(
+                deviceID: "test-device",
+                placeSharingMode: .preciseCoordinates,
+                homeRegion: .init(identifier: "home", latitude: 47.3769, longitude: 8.5417, radiusMeters: 150),
+                openClaw: OpenClawConfiguration(
+                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
+                    bearerToken: "bearer-token",
+                    hmacSecret: "hmac-secret"
+                )
+            )
+        )
+
+        await MockURLProtocol.setRequestHandler { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(#"{"ok":true}"#.utf8))
+        }
+
+        let sessionConfiguration = URLSessionConfiguration.ephemeral
+        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: sessionConfiguration)
+
+        let coordinator = BackgroundWakeCoordinator(
+            store: store,
+            engine: CorroborationEngine(
+                store: store,
+                configuration: RuntimeConfiguration(deviceID: "test-device"),
+                clock: clock
+            ),
+            snapshotEnricher: SnapshotEnricher(),
+            policyEngine: PolicyEngine(),
+            deliveryClient: DeliveryClient(session: session),
+            settingsStore: settingsStore,
+            clock: clock
+        )
+
+        _ = try await coordinator.sendTestEvent(ContextEventType.arrivedHome)
+
+        let request = await MockURLProtocol.lastRequest()
+        let deliveredRequest = try XCTUnwrap(request)
+        let deliveredBody = try XCTUnwrap(requestBody(from: deliveredRequest))
+        let deliveredEnvelope = try JSONCoding.decoder.decode(SenseKitEventEnvelope.self, from: deliveredBody)
+        XCTAssertEqual(deliveredEnvelope.snapshot.place.type, .home)
+        XCTAssertEqual(deliveredEnvelope.snapshot.place.coordinate?.latitude, 47.3769)
+        XCTAssertEqual(deliveredEnvelope.snapshot.place.coordinate?.longitude, 8.5417)
+    }
+
+    func testSendTestEventOmitsHomeCoordinateWhenPlaceSharingIsLabelsOnly() async throws {
+        let clock = FixedClock(currentDate: date(hour: 18, minute: 15))
+        let store = TestRuntimeStore()
+        try await store.saveRuntimeState(RuntimeState(currentPlace: .home))
+        let settingsStore = InMemorySettingsStore(
+            configuration: RuntimeConfiguration(
+                deviceID: "test-device",
+                placeSharingMode: .labelsOnly,
+                homeRegion: .init(identifier: "home", latitude: 47.3769, longitude: 8.5417, radiusMeters: 150),
+                openClaw: OpenClawConfiguration(
+                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
+                    bearerToken: "bearer-token",
+                    hmacSecret: "hmac-secret"
+                )
+            )
+        )
+
+        await MockURLProtocol.setRequestHandler { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(#"{"ok":true}"#.utf8))
+        }
+
+        let sessionConfiguration = URLSessionConfiguration.ephemeral
+        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: sessionConfiguration)
+
+        let coordinator = BackgroundWakeCoordinator(
+            store: store,
+            engine: CorroborationEngine(
+                store: store,
+                configuration: RuntimeConfiguration(deviceID: "test-device"),
+                clock: clock
+            ),
+            snapshotEnricher: SnapshotEnricher(),
+            policyEngine: PolicyEngine(),
+            deliveryClient: DeliveryClient(session: session),
+            settingsStore: settingsStore,
+            clock: clock
+        )
+
+        _ = try await coordinator.sendTestEvent(ContextEventType.arrivedHome)
+
+        let request = await MockURLProtocol.lastRequest()
+        let deliveredRequest = try XCTUnwrap(request)
+        let deliveredBody = try XCTUnwrap(requestBody(from: deliveredRequest))
+        let deliveredEnvelope = try JSONCoding.decoder.decode(SenseKitEventEnvelope.self, from: deliveredBody)
+        XCTAssertEqual(deliveredEnvelope.snapshot.place.type, .home)
+        XCTAssertNil(deliveredEnvelope.snapshot.place.coordinate)
+    }
+
     private func date(hour: Int, minute: Int) -> Date {
         Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 7, hour: hour, minute: minute))!
     }
