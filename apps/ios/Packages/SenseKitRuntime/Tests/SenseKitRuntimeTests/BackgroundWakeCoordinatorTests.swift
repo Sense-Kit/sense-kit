@@ -155,6 +155,65 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
         XCTAssertFalse(state.isDriving)
     }
 
+    func testSendTestEventMarksNon2xxResponsesAsFailedAndRetryable() async throws {
+        let clock = FixedClock(currentDate: date(hour: 12, minute: 22))
+        let store = TestRuntimeStore()
+        let settingsStore = InMemorySettingsStore(
+            configuration: RuntimeConfiguration(
+                deviceID: "test-device",
+                openClaw: OpenClawConfiguration(
+                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
+                    bearerToken: "bearer-token",
+                    hmacSecret: "hmac-secret"
+                )
+            )
+        )
+
+        await MockURLProtocol.setRequestHandler { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/hooks/sensekit")
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 502,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(#"{"ok":false,"error":"bad gateway"}"#.utf8))
+        }
+
+        let sessionConfiguration = URLSessionConfiguration.ephemeral
+        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: sessionConfiguration)
+
+        let coordinator = BackgroundWakeCoordinator(
+            store: store,
+            engine: CorroborationEngine(
+                store: store,
+                configuration: RuntimeConfiguration(deviceID: "test-device"),
+                clock: clock
+            ),
+            snapshotEnricher: SnapshotEnricher(),
+            policyEngine: PolicyEngine(),
+            deliveryClient: DeliveryClient(session: session),
+            settingsStore: settingsStore,
+            clock: clock
+        )
+
+        _ = try await coordinator.sendTestEvent(.arrivedHome)
+
+        let auditEntries = try await store.auditEntries(limit: 10)
+        XCTAssertEqual(auditEntries.count, 2)
+        XCTAssertEqual(auditEntries[0].status, .queued)
+        XCTAssertEqual(auditEntries[1].status, .failed)
+        XCTAssertTrue(auditEntries[1].payloadSummary.contains("HTTP 502"))
+        XCTAssertTrue(auditEntries[1].payloadSummary.contains("bad gateway"))
+
+        let queuedItems = await store.queuedItems()
+        XCTAssertEqual(queuedItems.count, 1)
+        XCTAssertEqual(queuedItems[0].status, .retryWait)
+        XCTAssertEqual(queuedItems[0].attempt, 2)
+        XCTAssertNotNil(queuedItems[0].retryAt)
+    }
+
     func testHandleWakeForHealthSnapshotChangedSignalDeliversNeutralHealthEvent() async throws {
         let clock = FixedClock(currentDate: date(hour: 12, minute: 25))
         let store = TestRuntimeStore()
@@ -563,6 +622,10 @@ private actor TestRuntimeStore: RuntimeStore {
 
     func auditEntries(limit: Int) async throws -> [AuditLogEntry] {
         Array(auditLog.prefix(limit))
+    }
+
+    func queuedItems() -> [QueuedWebhook] {
+        queue
     }
 }
 

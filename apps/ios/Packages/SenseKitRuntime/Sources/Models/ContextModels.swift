@@ -481,12 +481,20 @@ public struct DebugTimelineEntry: Codable, Equatable, Sendable, Identifiable {
 
 public struct RegionConfiguration: Codable, Equatable, Sendable {
     public var identifier: String
+    public var displayName: String?
     public var latitude: Double
     public var longitude: Double
     public var radiusMeters: Double
 
-    public init(identifier: String, latitude: Double, longitude: Double, radiusMeters: Double) {
+    public init(
+        identifier: String,
+        displayName: String? = nil,
+        latitude: Double,
+        longitude: Double,
+        radiusMeters: Double
+    ) {
         self.identifier = identifier
+        self.displayName = displayName
         self.latitude = latitude
         self.longitude = longitude
         self.radiusMeters = radiusMeters

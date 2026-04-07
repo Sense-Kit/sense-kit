@@ -259,16 +259,16 @@ public final class LocationRuntimeController {
         let homeWorkEnabled = configuration.enabledFeatures.contains(.homeWork)
         let hasRegions = configuration.homeRegion != nil || configuration.workRegion != nil
 
-        if homeWorkEnabled && !hasRegions {
-            return .configurationRequired
-        }
-
-        if homeWorkEnabled {
+        if homeWorkEnabled && hasRegions {
             return .active(.always)
         }
 
         if configuration.drivingLocationBoostEnabled {
             return .active(.whenInUse)
+        }
+
+        if homeWorkEnabled && !hasRegions {
+            return .configurationRequired
         }
 
         return .inactive

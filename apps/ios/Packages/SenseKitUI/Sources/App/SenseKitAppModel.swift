@@ -246,19 +246,24 @@ public final class SenseKitAppModel {
     }
 
     public func applySetupSelections(
-        motionAndRoutineEnabled: Bool,
-        placesEnabled: Bool,
+        wakeEnabled: Bool,
+        drivingEnabled: Bool,
+        fixedPlacesEnabled: Bool,
+        continuousLocationEnabled: Bool,
         workoutsEnabled: Bool
     ) async {
         var nextFeatures = selectedFeatures
         nextFeatures.subtract([.wakeBrief, .drivingMode, .homeWork, .workoutFollowUp])
 
-        if motionAndRoutineEnabled {
+        if wakeEnabled {
             nextFeatures.insert(.wakeBrief)
+        }
+
+        if drivingEnabled {
             nextFeatures.insert(.drivingMode)
         }
 
-        if placesEnabled {
+        if fixedPlacesEnabled {
             nextFeatures.insert(.homeWork)
         }
 
@@ -267,6 +272,7 @@ public final class SenseKitAppModel {
         }
 
         selectedFeatures = nextFeatures
+        drivingLocationBoostEnabled = continuousLocationEnabled
         await persistRuntimeConfigurationDraft(successMessage: "Setup choices saved.")
     }
 
@@ -461,15 +467,15 @@ public final class SenseKitAppModel {
     public var wakeCollectorHelpText: String {
         switch wakeCollectorStatus {
         case .inactive:
-            return "Turn on Wake Brief in Setup, then save your settings to start exporting raw motion activity."
+            return "Turn on Wake timing or Driving state in Setup to let SenseKit start using motion activity."
         case .permissionRequired:
-            return "Allow Motion access when iPhone asks. SenseKit will send raw motion activity changes to OpenClaw."
+            return "Allow Motion access when iPhone asks. SenseKit will use that stream for wake and driving detection."
         case .permissionDenied:
-            return "Turn Motion & Fitness back on in iPhone Settings if you want raw motion activity export."
+            return "Turn Motion & Fitness back on in iPhone Settings if you want motion-based wake or driving detection."
         case .unavailable:
             return "This device does not expose the motion activity API SenseKit needs for raw motion export."
         case .running:
-            return "Motion updates are active. SenseKit will export raw motion activity changes to OpenClaw."
+            return "Motion updates are active. SenseKit can now power the wake and driving inputs you selected."
         }
     }
 
@@ -478,7 +484,7 @@ public final class SenseKitAppModel {
         case .inactive:
             return "Location collection is off"
         case .configurationRequired:
-            return "Home or Work needs setup"
+            return "Fixed places need setup"
         case .permissionRequired:
             return "Needs Location access"
         case .permissionDenied:
@@ -493,17 +499,17 @@ public final class SenseKitAppModel {
     public var locationCollectorHelpText: String {
         switch locationCollectorStatus {
         case .inactive:
-            return "Turn on the driving location boost or configure Home / Work to start location collection."
+            return "Turn on continuous location data or add fixed places to start location collection."
         case .configurationRequired:
-            return "Save at least one Home or Work region, then tap Save Configuration."
+            return "Add at least one fixed place like Home or Work so SenseKit knows which places to watch."
         case .permissionRequired:
-            return "Current Location capture starts with While Using the App. After you save Home or Work, iPhone should also ask for Always Allow so background geofences can work."
+            return "Current Location capture starts with While Using the App. If you add fixed places, iPhone should also ask for Always Allow so geofences can work in the background."
         case .permissionDenied:
-            return "Turn Location access back on in iPhone Settings if you want place detection or driving location boosts."
+            return "Turn Location access back on in iPhone Settings if you want fixed-place events or continuous location movement."
         case .unavailable:
             return "This device does not expose the location services SenseKit needs."
         case .running:
-            return "Location monitoring is active. SenseKit can now observe region entries and movement-based location boosts."
+            return "Location monitoring is active. SenseKit can now observe movement and any fixed places you have added."
         }
     }
 
@@ -535,6 +541,14 @@ public final class SenseKitAppModel {
 
     public var motionAndRoutineSelectionEnabled: Bool {
         selectedFeatures.contains(.wakeBrief) || selectedFeatures.contains(.drivingMode)
+    }
+
+    public var wakeSelectionEnabled: Bool {
+        selectedFeatures.contains(.wakeBrief)
+    }
+
+    public var drivingSelectionEnabled: Bool {
+        selectedFeatures.contains(.drivingMode)
     }
 
     public var placesSelectionEnabled: Bool {
@@ -724,6 +738,10 @@ public final class SenseKitAppModel {
     private static func regionSummary(_ region: RegionConfiguration?) -> String {
         guard let region else {
             return "Not set"
+        }
+
+        if let displayName = region.displayName, !displayName.isEmpty {
+            return "\(displayName) · \(Int(region.radiusMeters)) m"
         }
 
         return String(

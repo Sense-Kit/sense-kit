@@ -3,6 +3,9 @@ import SenseKitRuntime
 
 #if canImport(CoreLocation)
 import CoreLocation
+#if canImport(MapKit)
+import MapKit
+#endif
 
 @MainActor
 final class LiveAddressSearchResolver: @unchecked Sendable {
@@ -14,17 +17,13 @@ final class LiveAddressSearchResolver: @unchecked Sendable {
             throw AddressSearchError.emptyQuery
         }
 
-        let placemarks = try await geocodeAddressString(trimmedQuery)
-        guard let location = placemarks.first?.location else {
-            throw AddressSearchError.noMatch
+        #if canImport(MapKit)
+        if let region = try await searchWithMapKit(query: trimmedQuery, identifier: identifier, radiusMeters: radiusMeters) {
+            return region
         }
+        #endif
 
-        return RegionConfiguration(
-            identifier: identifier,
-            latitude: location.coordinate.latitude,
-            longitude: location.coordinate.longitude,
-            radiusMeters: radiusMeters
-        )
+        return try await searchWithGeocoder(query: trimmedQuery, identifier: identifier, radiusMeters: radiusMeters)
     }
 
     private func geocodeAddressString(_ query: String) async throws -> [CLPlacemark] {
@@ -38,6 +37,56 @@ final class LiveAddressSearchResolver: @unchecked Sendable {
                 continuation.resume(returning: placemarks ?? [])
             }
         }
+    }
+
+    #if canImport(MapKit)
+    private func searchWithMapKit(query: String, identifier: String, radiusMeters: Double) async throws -> RegionConfiguration? {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = query
+        let response = try await MKLocalSearch(request: request).start()
+        guard let item = response.mapItems.first else {
+            return nil
+        }
+
+        let displayName = [
+            item.name,
+            item.placemark.title
+        ]
+        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first { !$0.isEmpty }
+
+        return RegionConfiguration(
+            identifier: identifier,
+            displayName: displayName,
+            latitude: item.placemark.coordinate.latitude,
+            longitude: item.placemark.coordinate.longitude,
+            radiusMeters: radiusMeters
+        )
+    }
+    #endif
+
+    private func searchWithGeocoder(query: String, identifier: String, radiusMeters: Double) async throws -> RegionConfiguration {
+        let placemarks = try await geocodeAddressString(query)
+        guard let placemark = placemarks.first, let location = placemark.location else {
+            throw AddressSearchError.noMatch
+        }
+
+        let displayName = [
+            placemark.name,
+            placemark.thoroughfare,
+            placemark.locality
+        ]
+        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+        .joined(separator: ", ")
+
+        return RegionConfiguration(
+            identifier: identifier,
+            displayName: displayName.isEmpty ? nil : displayName,
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude,
+            radiusMeters: radiusMeters
+        )
     }
 }
 

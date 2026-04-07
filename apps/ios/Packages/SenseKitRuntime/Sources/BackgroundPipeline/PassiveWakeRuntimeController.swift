@@ -117,7 +117,7 @@ public final class PassiveWakeRuntimeController {
     }
 
     public func refresh(configuration: RuntimeConfiguration) async throws -> WakeCollectorStatus {
-        guard configuration.enabledFeatures.contains(.wakeBrief) else {
+        guard isMotionCollectionEnabled(configuration) else {
             stopCollector()
             collectorStatus = .inactive
             activeConfiguration = nil
@@ -160,7 +160,7 @@ public final class PassiveWakeRuntimeController {
     }
 
     public func currentStatus(configuration: RuntimeConfiguration) -> WakeCollectorStatus {
-        guard configuration.enabledFeatures.contains(.wakeBrief) else {
+        guard isMotionCollectionEnabled(configuration) else {
             return .inactive
         }
 
@@ -179,6 +179,10 @@ public final class PassiveWakeRuntimeController {
     private func stopCollector() {
         motionCollector?.stop()
         motionCollector = nil
+    }
+
+    private func isMotionCollectionEnabled(_ configuration: RuntimeConfiguration) -> Bool {
+        configuration.enabledFeatures.contains(.wakeBrief) || configuration.enabledFeatures.contains(.drivingMode)
     }
 
     private func makeSignalHandler(configuration: RuntimeConfiguration) -> SignalHandler {

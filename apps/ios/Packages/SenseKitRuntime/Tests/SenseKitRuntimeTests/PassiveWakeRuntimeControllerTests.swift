@@ -27,6 +27,29 @@ final class PassiveWakeRuntimeControllerTests: XCTestCase {
         XCTAssertEqual(collectorFactory.collector.startCount, 1)
     }
 
+    func testRefreshStartsMotionCollectorWhenDrivingFeatureEnabled() async throws {
+        let store = ControllerTestRuntimeStore()
+        let settingsStore = InMemorySettingsStore(
+            configuration: RuntimeConfiguration(deviceID: "device-1", enabledFeatures: [.drivingMode])
+        )
+        let collectorFactory = TestMotionCollectorFactory()
+        let controller = PassiveWakeRuntimeController(
+            store: store,
+            settingsStore: settingsStore,
+            snapshotEnricher: SnapshotEnricher(),
+            policyEngine: PolicyEngine(),
+            deliveryClient: DeliveryClient(),
+            clock: FixedClock(currentDate: date(hour: 6, minute: 45)),
+            motionCollectorFactory: collectorFactory,
+            motionAuthorizationProvider: StubMotionAuthorizationProvider(status: .authorized)
+        )
+
+        let status = try await controller.refresh(configuration: RuntimeConfiguration(deviceID: "device-1", enabledFeatures: [.drivingMode]))
+
+        XCTAssertEqual(status, .running)
+        XCTAssertEqual(collectorFactory.collector.startCount, 1)
+    }
+
     func testRefreshDoesNotStartCollectorWhenMotionDenied() async throws {
         let store = ControllerTestRuntimeStore()
         let settingsStore = InMemorySettingsStore(

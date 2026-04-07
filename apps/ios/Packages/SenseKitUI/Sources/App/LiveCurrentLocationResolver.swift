@@ -83,6 +83,7 @@ extension LiveCurrentLocationResolver: @preconcurrency CLLocationManagerDelegate
             with: .success(
                 RegionConfiguration(
                     identifier: pendingIdentifier,
+                    displayName: "Current location",
                     latitude: location.coordinate.latitude,
                     longitude: location.coordinate.longitude,
                     radiusMeters: pendingRadiusMeters

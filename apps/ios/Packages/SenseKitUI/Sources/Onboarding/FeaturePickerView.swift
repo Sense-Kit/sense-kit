@@ -4,9 +4,17 @@ import SenseKitRuntime
 public struct FeaturePickerView: View {
     @Bindable var model: SenseKitAppModel
     @FocusState private var focusedField: Field?
-    @State private var draftMotionAndRoutineEnabled = false
-    @State private var draftPlacesEnabled = false
+    @State private var draftWakeEnabled = false
+    @State private var draftDrivingEnabled = false
+    @State private var draftFixedPlacesEnabled = false
+    @State private var draftContinuousLocationEnabled = false
     @State private var draftWorkoutsEnabled = false
+    @State private var showsMotionDetails = false
+    @State private var showsPlaceDetails = false
+    @State private var showsPlaceSetup = false
+    @State private var showsHomePlaceEditor = false
+    @State private var showsWorkPlaceEditor = false
+    @State private var showsOpenClawChecklist = false
     @State private var hasLoadedDraft = false
     @State private var hasUnlockedFollowUp = false
 
@@ -73,35 +81,8 @@ public struct FeaturePickerView: View {
                 subtitle: "These choices drive what SenseKit prepares and what OpenClaw can react to."
             )
 
-            SetupSelectionCard(
-                icon: "figure.walk.motion",
-                title: "Motion & Routine",
-                description: "Activity changes, wake timing, and driving clues.",
-                permissions: "Motion & Fitness",
-                rawPreview: "motion activity, wake state, event reasons",
-                examples: [
-                    "wake_confirmed -> morning brief when you actually get up",
-                    "driving_started -> switch to voice-safe replies"
-                ],
-                isSelected: draftMotionAndRoutineEnabled
-            ) {
-                draftMotionAndRoutineEnabled.toggle()
-            }
-
-            SetupSelectionCard(
-                icon: "house.and.flag",
-                title: "Places",
-                description: "Home and work arrival, departure, and place context.",
-                permissions: "Always Location",
-                rawPreview: "place label, region events, optional exact home/work coordinates",
-                examples: [
-                    "arrived_home -> stop work mode automatically",
-                    "left_work -> start commute handoff"
-                ],
-                isSelected: draftPlacesEnabled
-            ) {
-                draftPlacesEnabled.toggle()
-            }
+            motionSelectionCard
+            placesSelectionCard
 
             SetupSelectionCard(
                 icon: "figure.run",
@@ -122,8 +103,10 @@ public struct FeaturePickerView: View {
                 dismissInput()
                 Task {
                     await model.applySetupSelections(
-                        motionAndRoutineEnabled: draftMotionAndRoutineEnabled,
-                        placesEnabled: draftPlacesEnabled,
+                        wakeEnabled: draftWakeEnabled,
+                        drivingEnabled: draftDrivingEnabled,
+                        fixedPlacesEnabled: draftFixedPlacesEnabled,
+                        continuousLocationEnabled: draftContinuousLocationEnabled,
                         workoutsEnabled: draftWorkoutsEnabled
                     )
                     hasUnlockedFollowUp = true
@@ -142,6 +125,132 @@ public struct FeaturePickerView: View {
         }
     }
 
+    private var motionSelectionCard: some View {
+        SetupSurfaceCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "figure.walk.motion")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(hasMotionSelection ? Color(red: 0.16, green: 0.33, blue: 0.61) : .secondary)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Motion")
+                            .font(.headline)
+                        Text("Start broad, then choose which motion-derived signals you actually want.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: hasMotionSelection ? "checkmark.circle.fill" : "circle")
+                        .imageScale(.large)
+                        .foregroundStyle(hasMotionSelection ? Color(red: 0.16, green: 0.33, blue: 0.61) : .secondary)
+                }
+
+                DisclosureGroup(
+                    isExpanded: $showsMotionDetails,
+                    content: {
+                        VStack(alignment: .leading, spacing: 12) {
+                            SetupChoiceRow(
+                                title: "Wake timing",
+                                detail: "Best for actual wake-up detection and morning handoff flows.",
+                                isSelected: draftWakeEnabled
+                            ) {
+                                draftWakeEnabled.toggle()
+                            }
+
+                            SetupChoiceRow(
+                                title: "Driving state",
+                                detail: "Best for commute mode and voice-safe behavior when you start moving in a vehicle.",
+                                isSelected: draftDrivingEnabled
+                            ) {
+                                draftDrivingEnabled.toggle()
+                            }
+
+                            Text("Permission: Motion & Fitness")
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 4)
+                    },
+                    label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Choose motion types")
+                                .font(.subheadline.weight(.semibold))
+                            Text(motionSelectionSummary)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    private var placesSelectionCard: some View {
+        SetupSurfaceCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "house.and.flag")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(hasPlaceSelection ? Color(red: 0.16, green: 0.33, blue: 0.61) : .secondary)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Places")
+                            .font(.headline)
+                        Text("Choose whether SenseKit should understand fixed places, continuous location movement, or both.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: hasPlaceSelection ? "checkmark.circle.fill" : "circle")
+                        .imageScale(.large)
+                        .foregroundStyle(hasPlaceSelection ? Color(red: 0.16, green: 0.33, blue: 0.61) : .secondary)
+                }
+
+                DisclosureGroup(
+                    isExpanded: $showsPlaceDetails,
+                    content: {
+                        VStack(alignment: .leading, spacing: 12) {
+                            SetupChoiceRow(
+                                title: "Fixed places",
+                                detail: "Arrival and departure events for saved places like home or work.",
+                                isSelected: draftFixedPlacesEnabled
+                            ) {
+                                draftFixedPlacesEnabled.toggle()
+                            }
+
+                            SetupChoiceRow(
+                                title: "Continuous location data",
+                                detail: "Movement and significant location changes for commute timing and location-aware behavior.",
+                                isSelected: draftContinuousLocationEnabled
+                            ) {
+                                draftContinuousLocationEnabled.toggle()
+                            }
+
+                            Text("Permissions: Always Location for fixed places, While Using for continuous location movement.")
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 4)
+                    },
+                    label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Choose place types")
+                                .font(.subheadline.weight(.semibold))
+                            Text(placeSelectionSummary)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                )
+            }
+        }
+    }
+
     private var followUpSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             sectionHeader(
@@ -149,11 +258,14 @@ public struct FeaturePickerView: View {
                 subtitle: "SenseKit now narrows setup to the permissions and details your chosen inputs need."
             )
 
-            if draftMotionAndRoutineEnabled {
+            if hasMotionSelection {
                 SetupSurfaceCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Label("Motion & Routine", systemImage: "figure.walk.motion")
+                        Label("Motion", systemImage: "figure.walk.motion")
                             .font(.headline)
+                        Text("Selected: \(motionSelectionSummary)")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                         LabeledContent("Status", value: model.wakeCollectorStatusText)
                         Text(model.wakeCollectorHelpText)
                             .font(.footnote)
@@ -173,31 +285,43 @@ public struct FeaturePickerView: View {
                 }
             }
 
-            if draftPlacesEnabled {
+            if hasPlaceSelection {
                 SetupSurfaceCard {
                     VStack(alignment: .leading, spacing: 16) {
                         Label("Places", systemImage: "house.and.flag")
                             .font(.headline)
 
-                        Picker(
-                            "Share place as",
-                            selection: Binding(
-                                get: { model.placeSharingMode },
-                                set: { newValue in
-                                    Task {
-                                        await model.setPlaceSharingMode(newValue)
-                                    }
-                                }
-                            )
-                        ) {
-                            Text("Labels Only").tag(PlaceSharingMode.labelsOnly)
-                            Text("Exact Coordinates").tag(PlaceSharingMode.preciseCoordinates)
-                        }
-                        .pickerStyle(.segmented)
-
-                        Text(placeSharingHelpText)
+                        Text("Selected: \(placeSelectionSummary)")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
+
+                        if draftFixedPlacesEnabled {
+                            VStack(alignment: .leading, spacing: 10) {
+                                SetupChoiceRow(
+                                    title: "Labels only",
+                                    detail: "Recommended. OpenClaw receives home/work labels, not the exact coordinates.",
+                                    isSelected: model.placeSharingMode == .labelsOnly
+                                ) {
+                                    Task {
+                                        await model.setPlaceSharingMode(.labelsOnly)
+                                    }
+                                }
+
+                                SetupChoiceRow(
+                                    title: "Exact coordinates",
+                                    detail: "OpenClaw also receives the saved home or work coordinates when SenseKit knows you are there.",
+                                    isSelected: model.placeSharingMode == .preciseCoordinates
+                                ) {
+                                    Task {
+                                        await model.setPlaceSharingMode(.preciseCoordinates)
+                                    }
+                                }
+                            }
+
+                            Text(placeSharingHelpText)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
 
                         LabeledContent("Status", value: model.locationCollectorStatusText)
                         Text(model.locationCollectorHelpText)
@@ -216,47 +340,86 @@ public struct FeaturePickerView: View {
                         }
                         .disabled(model.isBusy)
 
-                        Divider()
+                        if draftFixedPlacesEnabled {
+                            DisclosureGroup("Manage fixed places", isExpanded: $showsPlaceSetup) {
+                                VStack(alignment: .leading, spacing: 16) {
+                                    Text("Add the fixed places SenseKit should watch. Today that means Home and Work.")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
 
-                        placeRegionEditor(
-                            title: "Home",
-                            summary: model.homeRegionSummary,
-                            radiusMeters: $model.homeRadiusMeters,
-                            searchQuery: $model.homeSearchQuery,
-                            searchField: .homeSearch,
-                            useCurrentLocationAction: {
-                                await model.setHomeRegionFromCurrentLocation()
-                            },
-                            searchAction: {
-                                await model.searchHomeRegionFromAddress()
-                            },
-                            clearAction: {
-                                await model.clearHomeRegion()
-                            },
-                            isCapturing: model.isCapturingHomeRegion,
-                            isSearching: model.isSearchingHomeRegion
-                        )
+                                    HStack(spacing: 10) {
+                                        if !showsHomePlaceEditor {
+                                            Button("Add Home") {
+                                                showsHomePlaceEditor = true
+                                            }
+                                            .buttonStyle(.bordered)
+                                        }
 
-                        Divider()
+                                        if !showsWorkPlaceEditor {
+                                            Button("Add Work") {
+                                                showsWorkPlaceEditor = true
+                                            }
+                                            .buttonStyle(.bordered)
+                                        }
+                                    }
 
-                        placeRegionEditor(
-                            title: "Work",
-                            summary: model.workRegionSummary,
-                            radiusMeters: $model.workRadiusMeters,
-                            searchQuery: $model.workSearchQuery,
-                            searchField: .workSearch,
-                            useCurrentLocationAction: {
-                                await model.setWorkRegionFromCurrentLocation()
-                            },
-                            searchAction: {
-                                await model.searchWorkRegionFromAddress()
-                            },
-                            clearAction: {
-                                await model.clearWorkRegion()
-                            },
-                            isCapturing: model.isCapturingWorkRegion,
-                            isSearching: model.isSearchingWorkRegion
-                        )
+                                    if !showsHomePlaceEditor && !showsWorkPlaceEditor {
+                                        Text("No fixed places added yet.")
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    if showsHomePlaceEditor {
+                                        Divider()
+
+                                        placeRegionEditor(
+                                            title: "Home",
+                                            summary: model.homeRegionSummary,
+                                            radiusMeters: $model.homeRadiusMeters,
+                                            searchQuery: $model.homeSearchQuery,
+                                            searchField: .homeSearch,
+                                            useCurrentLocationAction: {
+                                                await model.setHomeRegionFromCurrentLocation()
+                                            },
+                                            searchAction: {
+                                                await model.searchHomeRegionFromAddress()
+                                            },
+                                            clearAction: {
+                                                await model.clearHomeRegion()
+                                                showsHomePlaceEditor = false
+                                            },
+                                            isCapturing: model.isCapturingHomeRegion,
+                                            isSearching: model.isSearchingHomeRegion
+                                        )
+                                    }
+
+                                    if showsWorkPlaceEditor {
+                                        Divider()
+
+                                        placeRegionEditor(
+                                            title: "Work",
+                                            summary: model.workRegionSummary,
+                                            radiusMeters: $model.workRadiusMeters,
+                                            searchQuery: $model.workSearchQuery,
+                                            searchField: .workSearch,
+                                            useCurrentLocationAction: {
+                                                await model.setWorkRegionFromCurrentLocation()
+                                            },
+                                            searchAction: {
+                                                await model.searchWorkRegionFromAddress()
+                                            },
+                                            clearAction: {
+                                                await model.clearWorkRegion()
+                                                showsWorkPlaceEditor = false
+                                            },
+                                            isCapturing: model.isCapturingWorkRegion,
+                                            isSearching: model.isSearchingWorkRegion
+                                        )
+                                    }
+                                }
+                                .padding(.top, 8)
+                            }
+                        }
                     }
                 }
             }
@@ -301,17 +464,20 @@ public struct FeaturePickerView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
 
-                        VStack(alignment: .leading, spacing: 10) {
-                            ForEach(Array(model.openClawSetupSteps.enumerated()), id: \.offset) { index, step in
-                                HStack(alignment: .top, spacing: 10) {
-                                    Text("\(index + 1).")
-                                        .font(.footnote.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                    Text(step)
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
+                        DisclosureGroup("Show OpenClaw + Tailscale steps", isExpanded: $showsOpenClawChecklist) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                ForEach(Array(model.openClawSetupSteps.enumerated()), id: \.offset) { index, step in
+                                    HStack(alignment: .top, spacing: 10) {
+                                        Text("\(index + 1).")
+                                            .font(.footnote.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                        Text(step)
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                             }
+                            .padding(.top, 8)
                         }
 
                         Text("Use the private Tailscale HTTPS hook URL here. Do not paste a public Gateway port.")
@@ -424,9 +590,9 @@ public struct FeaturePickerView: View {
         radiusMeters: Binding<Double>,
         searchQuery: Binding<String>,
         searchField: Field,
-        useCurrentLocationAction: @escaping @Sendable () async -> Void,
-        searchAction: @escaping @Sendable () async -> Void,
-        clearAction: @escaping @Sendable () async -> Void,
+        useCurrentLocationAction: @escaping () async -> Void,
+        searchAction: @escaping () async -> Void,
+        clearAction: @escaping () async -> Void,
         isCapturing: Bool,
         isSearching: Bool
     ) -> some View {
@@ -452,6 +618,13 @@ public struct FeaturePickerView: View {
             TextField("Search \(title.lowercased()) address", text: searchQuery)
                 .setupTextFieldStyle()
                 .focused($focusedField, equals: searchField)
+                .submitLabel(.search)
+                .onSubmit {
+                    dismissInput()
+                    Task {
+                        await searchAction()
+                    }
+                }
 
             Button {
                 dismissInput()
@@ -466,7 +639,7 @@ public struct FeaturePickerView: View {
             }
             .disabled(model.isBusy || searchQuery.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-            Button("Clear \(title)") {
+            Button("Remove \(title)") {
                 dismissInput()
                 Task {
                     await clearAction()
@@ -477,16 +650,20 @@ public struct FeaturePickerView: View {
     }
 
     private var savedSelectionsExist: Bool {
-        model.motionAndRoutineSelectionEnabled
+        model.wakeSelectionEnabled
+            || model.drivingSelectionEnabled
             || model.placesSelectionEnabled
+            || model.drivingLocationBoostEnabled
             || model.workoutsSelectionEnabled
             || model.homeRegionSummary != "Not set"
             || model.workRegionSummary != "Not set"
     }
 
     private var draftMatchesSavedSelections: Bool {
-        draftMotionAndRoutineEnabled == model.motionAndRoutineSelectionEnabled
-            && draftPlacesEnabled == model.placesSelectionEnabled
+        draftWakeEnabled == model.wakeSelectionEnabled
+            && draftDrivingEnabled == model.drivingSelectionEnabled
+            && draftFixedPlacesEnabled == model.placesSelectionEnabled
+            && draftContinuousLocationEnabled == model.drivingLocationBoostEnabled
             && draftWorkoutsEnabled == model.workoutsSelectionEnabled
     }
 
@@ -510,11 +687,53 @@ public struct FeaturePickerView: View {
         }
     }
 
+    private var hasPlaceSelection: Bool {
+        draftFixedPlacesEnabled || draftContinuousLocationEnabled
+    }
+
+    private var placeSelectionSummary: String {
+        switch (draftFixedPlacesEnabled, draftContinuousLocationEnabled) {
+        case (true, true):
+            return "Fixed places and continuous location data"
+        case (true, false):
+            return "Fixed places only"
+        case (false, true):
+            return "Continuous location data only"
+        case (false, false):
+            return "Nothing selected yet"
+        }
+    }
+
+    private var hasMotionSelection: Bool {
+        draftWakeEnabled || draftDrivingEnabled
+    }
+
+    private var motionSelectionSummary: String {
+        switch (draftWakeEnabled, draftDrivingEnabled) {
+        case (true, true):
+            return "Wake timing and driving state"
+        case (true, false):
+            return "Wake timing only"
+        case (false, true):
+            return "Driving state only"
+        case (false, false):
+            return "Nothing selected yet"
+        }
+    }
+
     private func syncDraftFromModelIfNeeded() {
         guard !hasLoadedDraft else { return }
-        draftMotionAndRoutineEnabled = model.motionAndRoutineSelectionEnabled
-        draftPlacesEnabled = model.placesSelectionEnabled
+        draftWakeEnabled = model.wakeSelectionEnabled
+        draftDrivingEnabled = model.drivingSelectionEnabled
+        draftFixedPlacesEnabled = model.placesSelectionEnabled
+        draftContinuousLocationEnabled = model.drivingLocationBoostEnabled
         draftWorkoutsEnabled = model.workoutsSelectionEnabled
+        showsMotionDetails = hasMotionSelection
+        showsPlaceDetails = hasPlaceSelection
+        showsPlaceSetup = draftFixedPlacesEnabled && (model.homeRegionSummary != "Not set" || model.workRegionSummary != "Not set")
+        showsHomePlaceEditor = model.homeRegionSummary != "Not set"
+        showsWorkPlaceEditor = model.workRegionSummary != "Not set"
+        showsOpenClawChecklist = model.showsOpenClawSetupGuide
         hasUnlockedFollowUp = savedSelectionsExist
         hasLoadedDraft = true
     }
@@ -586,6 +805,43 @@ private struct SetupSelectionCard: View {
                     }
                 }
             }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct SetupChoiceRow: View {
+    let title: String
+    let detail: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+
+                Spacer(minLength: 12)
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .imageScale(.large)
+                    .foregroundStyle(isSelected ? Color(red: 0.16, green: 0.33, blue: 0.61) : .secondary)
+                    .padding(.top, 2)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(isSelected ? Color(red: 0.16, green: 0.33, blue: 0.61).opacity(0.08) : Color.primary.opacity(0.05))
+            )
         }
         .buttonStyle(.plain)
     }

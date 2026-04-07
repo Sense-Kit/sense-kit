@@ -95,7 +95,7 @@ struct SenseKitAppModelTests {
         await model.toggleFeature(.homeWork)
 
         let savedConfiguration = await service.savedConfigurations.last
-        #expect(model.selectedFeatures.contains(.homeWork))
+        #expect(model.selectedFeatures.contains(FeatureFlag.homeWork))
         #expect(savedConfiguration?.enabledFeatures.contains(.homeWork) == true)
         #expect(model.feedback?.message == "Feature selection saved.")
     }
@@ -129,8 +129,10 @@ struct SenseKitAppModelTests {
         await model.load()
 
         await model.applySetupSelections(
-            motionAndRoutineEnabled: true,
-            placesEnabled: true,
+            wakeEnabled: true,
+            drivingEnabled: true,
+            fixedPlacesEnabled: true,
+            continuousLocationEnabled: true,
             workoutsEnabled: false
         )
 
@@ -138,8 +140,55 @@ struct SenseKitAppModelTests {
         #expect(savedConfiguration?.enabledFeatures.contains(.wakeBrief) == true)
         #expect(savedConfiguration?.enabledFeatures.contains(.drivingMode) == true)
         #expect(savedConfiguration?.enabledFeatures.contains(.homeWork) == true)
+        #expect(savedConfiguration?.drivingLocationBoostEnabled == true)
         #expect(savedConfiguration?.enabledFeatures.contains(.workoutFollowUp) == false)
         #expect(model.feedback?.message == "Setup choices saved.")
+    }
+
+    @Test
+    func applySetupSelectionsCanPersistWakeWithoutDriving() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(deviceID: "device-1")
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+        await model.load()
+
+        await model.applySetupSelections(
+            wakeEnabled: true,
+            drivingEnabled: false,
+            fixedPlacesEnabled: false,
+            continuousLocationEnabled: false,
+            workoutsEnabled: false
+        )
+
+        let savedConfiguration = await service.savedConfigurations.last
+        #expect(savedConfiguration?.enabledFeatures.contains(.wakeBrief) == true)
+        #expect(savedConfiguration?.enabledFeatures.contains(.drivingMode) == false)
+    }
+
+    @Test
+    func applySetupSelectionsCanPersistContinuousLocationWithoutFixedPlaces() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(deviceID: "device-1")
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+        await model.load()
+
+        await model.applySetupSelections(
+            wakeEnabled: false,
+            drivingEnabled: false,
+            fixedPlacesEnabled: false,
+            continuousLocationEnabled: true,
+            workoutsEnabled: false
+        )
+
+        let savedConfiguration = await service.savedConfigurations.last
+        #expect(savedConfiguration?.enabledFeatures.contains(.homeWork) == false)
+        #expect(savedConfiguration?.drivingLocationBoostEnabled == true)
     }
 
     @Test
@@ -429,6 +478,7 @@ struct SenseKitAppModelTests {
             ),
             nextSearchRegion: RegionConfiguration(
                 identifier: "home",
+                displayName: "Bahnhofstrasse 1, Zurich",
                 latitude: 47.42310,
                 longitude: 8.54760,
                 radiusMeters: 200
@@ -449,7 +499,7 @@ struct SenseKitAppModelTests {
         #expect(searchRequests.first?.1 == "Bahnhofstrasse 1 Zurich")
         #expect(searchRequests.first?.2 == 200)
         #expect(model.selectedFeatures.contains(.homeWork))
-        #expect(model.homeRegionSummary.contains("47.42310"))
+        #expect(model.homeRegionSummary.contains("Bahnhofstrasse 1, Zurich"))
         #expect(model.feedback?.message == "Home region found and saved.")
         #expect(savedConfiguration?.homeRegion?.identifier == "home")
     }

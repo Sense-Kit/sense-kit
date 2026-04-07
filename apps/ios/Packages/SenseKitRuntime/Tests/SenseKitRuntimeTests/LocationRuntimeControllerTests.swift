@@ -91,6 +91,38 @@ final class LocationRuntimeControllerTests: XCTestCase {
         XCTAssertEqual(collectorFactory.collector.startCount, 0)
     }
 
+    func testRefreshStartsLocationCollectorForContinuousLocationEvenWhenFixedPlacesAreNotSetYet() async throws {
+        let store = LocationControllerTestRuntimeStore()
+        let settingsStore = InMemorySettingsStore(
+            configuration: RuntimeConfiguration(
+                deviceID: "device-1",
+                enabledFeatures: [.homeWork],
+                drivingLocationBoostEnabled: true
+            )
+        )
+        let collectorFactory = TestLocationCollectorFactory()
+        let authorizationProvider = StubLocationAuthorizationProvider(status: .authorizedWhenInUse)
+        let controller = LocationRuntimeController(
+            store: store,
+            settingsStore: settingsStore,
+            clock: FixedLocationClock(currentDate: date(hour: 8, minute: 15)),
+            locationCollectorFactory: collectorFactory,
+            locationAuthorizationProvider: authorizationProvider
+        )
+
+        let status = try await controller.refresh(
+            configuration: RuntimeConfiguration(
+                deviceID: "device-1",
+                enabledFeatures: [.homeWork],
+                drivingLocationBoostEnabled: true
+            )
+        )
+
+        XCTAssertEqual(status, .running)
+        XCTAssertEqual(collectorFactory.collector.startCount, 1)
+        XCTAssertEqual(collectorFactory.collector.restoreCount, 1)
+    }
+
     func testHomeRegionSignalEmitsArrivedHomeEvent() async throws {
         let clock = FixedLocationClock(currentDate: date(hour: 18, minute: 22))
         let store = LocationControllerTestRuntimeStore()
