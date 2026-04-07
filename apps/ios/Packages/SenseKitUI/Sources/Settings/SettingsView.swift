@@ -256,6 +256,16 @@ public struct SettingsView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Privacy") {
+                NavigationLink("Privacy Policy and Beta Notes") {
+                    PrivacyPolicyView()
+                }
+
+                Text("This screen explains what the closed beta collects, what gets sent to OpenClaw, and how testers can turn collection off.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
         .navigationTitle("Settings")
         .settingsKeyboardDismissSupport(dismissInput)
