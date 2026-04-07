@@ -133,6 +133,7 @@ For personal testing, keep OpenClaw private and use Tailscale instead of exposin
 - Use a separate `hooks.token` for SenseKit hooks. Do not reuse `gateway.auth.token`.
 - Treat hook payloads as untrusted content even when they come from systems you control. Keep the receiving agent narrow and low-privilege.
 - A public hook-only reverse proxy or a small verifier relay can come later, but they are not the safest first deployment.
+- If OpenClaw returns `hook mapping failed`, remove any custom `transform` block first and test with the example mapping unchanged. SenseKit sends snake_case fields like `event.event_id`, `event.event_type`, and `snapshot.place.type`.
 
 ## Debug Timeline vs Audit Log
 

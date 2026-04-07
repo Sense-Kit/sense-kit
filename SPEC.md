@@ -380,19 +380,24 @@ POST /hooks/sensekit
 Authorization: Bearer <token>
 
 {
-  "deviceId": "iphone_julian",
+  "schema_version": "sensekit.event.v1",
+  "device_id": "iphone_julian",
   "event": {
-    "id": "evt_01HXXYZ123",
-    "type": "wake_confirmed",
+    "schema_version": "sensekit.context_event.v1",
+    "event_id": "evt_01HXXYZ123",
+    "event_type": "wake_confirmed",
     "occurred_at": "2026-03-08T06:47:05Z",
     "confidence": 0.98,
+    "reasons": ["motion.walking_to_stationary"],
     "mode_hint": "text_brief"
   },
   "snapshot": {
+    "schema_version": "sensekit.context_snapshot.v1",
+    "captured_at": "2026-03-08T06:47:05Z",
     "routine": { "awake": true, "focus": null, "workout": "inactive" },
     "place": { "type": "home", "freshness": "recent" },
     "calendar": { "in_meeting": false, "next_meeting_in_min": 46 },
-    "device": { "battery": 84, "charging": false }
+    "device": { "battery_percent_bucket": 80, "charging": false }
   }
 }
 ```
@@ -410,8 +415,8 @@ Authorization: Bearer <token>
         agentId: "main",
         wakeMode: "now",
         name: "SenseKit",
-        sessionKey: "hook:sensekit:{{event.id}}",
-        messageTemplate: "SenseKit event: {{event.type}}\nConfidence: {{event.confidence}}\nMode hint: {{event.mode_hint}}\nSnapshot: {{snapshot}}",
+        sessionKey: "hook:sensekit:{{event.event_id}}",
+        messageTemplate: "SenseKit event: {{event.event_type}}\nConfidence: {{event.confidence}}\nMode hint: {{event.mode_hint}}\nSnapshot: {{snapshot}}",
         deliver: false
       }
     ]

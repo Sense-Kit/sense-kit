@@ -1,12 +1,12 @@
 # SenseKit OpenClaw Skill
 
-This package holds the first OpenClaw-facing assets for SenseKit.
+This package contains the OpenClaw-facing assets for SenseKit.
 
-Current scope:
+Current contents:
 
-- example webhook mapping
-- message template conventions
-- event behavior guidance
+- `SKILL.md`: agent guidance for configuring and interpreting SenseKit events
+- `references/hook-config.md`: known-good webhook mapping
+- `references/payload-shape.md`: real payload fields and event types
+- `templates/message-template.txt`: simple message template for hook delivery
 
-The phone remains webhook-first in MVP. The OpenClaw plugin is optional later.
-
+The phone remains webhook-first in MVP. The OpenClaw plugin is still optional later.
