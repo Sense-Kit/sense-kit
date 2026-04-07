@@ -91,6 +91,16 @@ xcodebuild -workspace apps/ios/SenseKit.xcworkspace -scheme SenseKitApp -sdk iph
 xcodebuild -workspace apps/ios/SenseKit.xcworkspace -scheme SenseKitBenchApp -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
 
+## OpenClaw connectivity and security
+
+For personal testing, keep OpenClaw private and use Tailscale instead of exposing the raw Gateway to the public internet.
+
+- Recommended first setup: OpenClaw stays on `gateway.bind: "loopback"` and is exposed privately with Tailscale Serve.
+- Do not expose the raw OpenClaw Gateway port publicly just to receive SenseKit hooks. The Gateway is a larger surface than one webhook path.
+- Use a separate `hooks.token` for SenseKit hooks. Do not reuse `gateway.auth.token`.
+- Treat hook payloads as untrusted content even when they come from systems you control. Keep the receiving agent narrow and low-privilege.
+- A public hook-only reverse proxy or a small verifier relay can come later, but they are not the safest first deployment.
+
 ## First development focus
 
 If you want to help on the MVP, the highest-value work is:
