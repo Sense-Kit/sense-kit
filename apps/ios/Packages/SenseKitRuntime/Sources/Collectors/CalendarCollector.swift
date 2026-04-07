@@ -19,11 +19,15 @@ public actor CalendarSnapshotProvider: SnapshotProvider {
         return ContextSnapshot(
             capturedAt: date,
             routine: .init(awake: state.lastWakeAt != nil, focus: nil, workout: state.isWorkoutActive ? .active : .inactive),
-            place: .init(type: state.currentPlace, freshness: .recent),
+            place: .init(
+                type: state.currentPlace,
+                identifier: state.currentPlaceIdentifier,
+                name: state.currentPlaceName,
+                freshness: .recent
+            ),
             calendar: .init(inMeeting: currentEvent != nil, nextMeetingInMin: nextMeetingMinutes, freshness: .live),
             device: .init(batteryPercentBucket: 100, charging: false)
         )
     }
 }
 #endif
-

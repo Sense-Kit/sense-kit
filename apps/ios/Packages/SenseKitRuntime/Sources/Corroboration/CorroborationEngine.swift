@@ -131,6 +131,8 @@ public actor CorroborationEngine {
             return state.isDriving
         case .drivingStopped:
             return !state.isDriving
+        case .arrivedPlace, .leftPlace:
+            return false
         case .arrivedHome:
             return state.currentPlace == .home
         case .leftHome:
@@ -160,6 +162,8 @@ public actor CorroborationEngine {
             return state.isDriving ? 0 : 0.05
         case .drivingStopped:
             return state.isDriving ? 0.15 : 0
+        case .arrivedPlace, .leftPlace:
+            return 0
         case .arrivedHome:
             return state.currentPlace == .home ? 0 : 0.10
         case .leftHome:

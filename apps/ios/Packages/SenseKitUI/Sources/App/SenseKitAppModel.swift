@@ -6,6 +6,8 @@ public enum SettingsBusyAction: Sendable {
     case loading
     case savingConfiguration
     case sendingTestEvent
+    case capturingFixedPlace
+    case searchingFixedPlace
     case capturingHomeRegion
     case capturingWorkRegion
     case searchingHomeRegion
@@ -317,6 +319,45 @@ public final class SenseKitAppModel {
         await persistRuntimeConfigurationDraft(successMessage: "Work region cleared.")
     }
 
+    @discardableResult
+    public func addFixedPlaceFromCurrentLocation(name: String, radiusMeters: Double) async -> Bool {
+        await addFixedPlace(
+            name: name,
+            radiusMeters: radiusMeters,
+            action: .capturingFixedPlace
+        ) { identifier in
+            try await self.service.captureCurrentRegion(identifier: identifier, radiusMeters: radiusMeters)
+        }
+    }
+
+    @discardableResult
+    public func addFixedPlaceFromAddress(name: String, query: String, radiusMeters: Double) async -> Bool {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            setError(status: "Address required", message: "Enter an address or place search first.")
+            return false
+        }
+
+        return await addFixedPlace(
+            name: name,
+            radiusMeters: radiusMeters,
+            action: .searchingFixedPlace
+        ) { identifier in
+            try await self.service.searchRegion(query: trimmedQuery, identifier: identifier, radiusMeters: radiusMeters)
+        }
+    }
+
+    public func removeFixedPlace(identifier: String) async {
+        guard let existingPlace = configuration.fixedPlaces.first(where: { $0.identifier == identifier }) else {
+            return
+        }
+
+        configuration.fixedPlaces.removeAll { $0.identifier == identifier }
+        await persistRuntimeConfigurationDraft(
+            successMessage: "\(existingPlace.displayName ?? existingPlace.identifier) removed."
+        )
+    }
+
     public func persistRuntimeDraftOnBackground() async {
         guard hasLoaded, !isBusy else { return }
         await persistRuntimeConfigurationDraft(successMessage: nil)
@@ -501,7 +542,7 @@ public final class SenseKitAppModel {
         case .inactive:
             return "Turn on continuous location data or add fixed places to start location collection."
         case .configurationRequired:
-            return "Add at least one fixed place like Home or Work so SenseKit knows which places to watch."
+            return "Add at least one fixed place such as home, gym, office, or studio so SenseKit knows which places to watch."
         case .permissionRequired:
             return "Current Location capture starts with While Using the App. If you add fixed places, iPhone should also ask for Always Allow so geofences can work in the background."
         case .permissionDenied:
@@ -525,11 +566,17 @@ public final class SenseKitAppModel {
 
     public var isSavingConfiguration: Bool { busyAction == .savingConfiguration }
     public var isSendingTestEvent: Bool { busyAction == .sendingTestEvent }
+    public var isCapturingFixedPlace: Bool { busyAction == .capturingFixedPlace }
+    public var isSearchingFixedPlace: Bool { busyAction == .searchingFixedPlace }
     public var isCapturingHomeRegion: Bool { busyAction == .capturingHomeRegion }
     public var isCapturingWorkRegion: Bool { busyAction == .capturingWorkRegion }
     public var isSearchingHomeRegion: Bool { busyAction == .searchingHomeRegion }
     public var isSearchingWorkRegion: Bool { busyAction == .searchingWorkRegion }
     public var isRefreshingStatuses: Bool { busyAction == .refreshingStatuses }
+
+    public var fixedPlaces: [RegionConfiguration] {
+        configuration.fixedPlaces
+    }
 
     public var homeRegionSummary: String {
         Self.regionSummary(configuration.homeRegion)
@@ -617,6 +664,10 @@ public final class SenseKitAppModel {
             return true
         }
 
+        if self.configuration.fixedPlaces != configuration.fixedPlaces {
+            return true
+        }
+
         let savedEndpoint = configuration.openClaw?.endpointURL.absoluteString ?? ""
         if endpointURLText != savedEndpoint {
             return true
@@ -686,6 +737,46 @@ public final class SenseKitAppModel {
         await persistRuntimeConfigurationDraft(successMessage: successMessage)
     }
 
+    @discardableResult
+    private func addFixedPlace(
+        name: String,
+        radiusMeters: Double,
+        action: SettingsBusyAction,
+        resolver: @escaping @Sendable (String) async throws -> RegionConfiguration
+    ) async -> Bool {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            setError(status: "Place name required", message: "Enter a name for the place first.")
+            return false
+        }
+
+        guard !isBusy else {
+            return false
+        }
+
+        isBusy = true
+        busyAction = action
+        defer {
+            isBusy = false
+            busyAction = nil
+        }
+
+        do {
+            let identifier = nextCustomPlaceIdentifier(for: trimmedName)
+            var region = try await resolver(identifier)
+            region.identifier = identifier
+            region.displayName = trimmedName
+            configuration.fixedPlaces.append(region)
+            selectedFeatures.insert(.homeWork)
+            await persistRuntimeConfigurationDraft(successMessage: "\(trimmedName) added and saved.")
+            return true
+        } catch {
+            let errorStatus = action == .capturingFixedPlace ? "Location capture failed" : "Address search failed"
+            setError(status: errorStatus, message: error.localizedDescription)
+            return false
+        }
+    }
+
     private func persistRuntimeConfigurationDraft(successMessage: String?) async {
         let wasBusy = isBusy
         let previousAction = busyAction
@@ -733,6 +824,33 @@ public final class SenseKitAppModel {
         }
 
         return nextConfiguration
+    }
+
+    private func nextCustomPlaceIdentifier(for name: String) -> String {
+        let base = Self.slug(from: name)
+        var candidate = "place-\(base)"
+        var suffix = 2
+        let existingIdentifiers = Set(configuration.fixedPlaces.map(\.identifier))
+
+        while existingIdentifiers.contains(candidate) || candidate == "home" || candidate == "work" {
+            candidate = "place-\(base)-\(suffix)"
+            suffix += 1
+        }
+
+        return candidate
+    }
+
+    private static func slug(from text: String) -> String {
+        let mapped = text.lowercased().map { character -> Character in
+            if character.isLetter || character.isNumber {
+                return character
+            }
+            return "-"
+        }
+        let collapsed = String(mapped)
+            .split(separator: "-", omittingEmptySubsequences: true)
+            .joined(separator: "-")
+        return collapsed.isEmpty ? "place" : collapsed
     }
 
     private static func regionSummary(_ region: RegionConfiguration?) -> String {

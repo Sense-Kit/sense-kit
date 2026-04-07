@@ -33,8 +33,14 @@ export interface ContextSnapshot {
     workout: "inactive" | "active";
   };
   place: {
-    type: "home" | "work" | "other";
+    type: "home" | "work" | "custom" | "other";
+    identifier?: string | null;
+    name?: string | null;
     freshness: "live" | "recent" | "stale";
+    coordinate?: {
+      latitude: number;
+      longitude: number;
+    } | null;
   };
   calendar: {
     in_meeting: boolean;

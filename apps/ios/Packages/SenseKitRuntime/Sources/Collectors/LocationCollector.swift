@@ -19,12 +19,8 @@ public final class LocationCollector: NSObject, LocationSignalCollecting {
     public func start() async {
         manager.startMonitoringSignificantLocationChanges()
 
-        if let home = configuration.homeRegion {
-            manager.startMonitoring(for: makeRegion(from: home))
-        }
-
-        if let work = configuration.workRegion {
-            manager.startMonitoring(for: makeRegion(from: work))
+        for region in configuration.monitoredRegions {
+            manager.startMonitoring(for: makeRegion(from: region))
         }
     }
 
@@ -46,25 +42,80 @@ public final class LocationCollector: NSObject, LocationSignalCollecting {
 extension LocationCollector: @preconcurrency CLLocationManagerDelegate {
     public func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
         Task {
-            let key = region.identifier == configuration.homeRegion?.identifier ? "location.region_enter_home" : "location.region_enter_work"
+            let observedAt = Date()
+
+            if region.identifier == configuration.homeRegion?.identifier {
+                await signalHandler(
+                    ContextSignal(
+                        signalKey: "location.region_enter_home",
+                        source: "corelocation_region",
+                        weight: 0.85,
+                        polarity: .support,
+                        observedAt: observedAt,
+                        validForSec: 180
+                    )
+                )
+                await signalHandler(
+                    ContextSignal(
+                        signalKey: "place.arrived_home_or_work",
+                        source: "corelocation_region",
+                        weight: 0.10,
+                        polarity: .support,
+                        observedAt: observedAt,
+                        validForSec: 180
+                    )
+                )
+                return
+            }
+
+            if region.identifier == configuration.workRegion?.identifier {
+                await signalHandler(
+                    ContextSignal(
+                        signalKey: "location.region_enter_work",
+                        source: "corelocation_region",
+                        weight: 0.85,
+                        polarity: .support,
+                        observedAt: observedAt,
+                        validForSec: 180
+                    )
+                )
+                await signalHandler(
+                    ContextSignal(
+                        signalKey: "place.arrived_home_or_work",
+                        source: "corelocation_region",
+                        weight: 0.10,
+                        polarity: .support,
+                        observedAt: observedAt,
+                        validForSec: 180
+                    )
+                )
+                return
+            }
+
+            guard let place = configuration.region(for: region.identifier) else {
+                return
+            }
+
             await signalHandler(
                 ContextSignal(
-                    signalKey: key,
+                    signalKey: "location.region_enter_place",
                     source: "corelocation_region",
                     weight: 0.85,
                     polarity: .support,
-                    observedAt: Date(),
-                    validForSec: 180
+                    observedAt: observedAt,
+                    validForSec: 180,
+                    payload: placePayload(from: place)
                 )
             )
             await signalHandler(
                 ContextSignal(
-                    signalKey: "place.arrived_home_or_work",
+                    signalKey: "place.arrived_saved_place",
                     source: "corelocation_region",
                     weight: 0.10,
                     polarity: .support,
-                    observedAt: Date(),
-                    validForSec: 180
+                    observedAt: observedAt,
+                    validForSec: 180,
+                    payload: placePayload(from: place)
                 )
             )
         }
@@ -72,15 +123,49 @@ extension LocationCollector: @preconcurrency CLLocationManagerDelegate {
 
     public func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
         Task {
-            let key = region.identifier == configuration.homeRegion?.identifier ? "location.region_exit_home" : "location.region_exit_work"
+            let observedAt = Date()
+
+            if region.identifier == configuration.homeRegion?.identifier {
+                await signalHandler(
+                    ContextSignal(
+                        signalKey: "location.region_exit_home",
+                        source: "corelocation_region",
+                        weight: 0.85,
+                        polarity: .support,
+                        observedAt: observedAt,
+                        validForSec: 180
+                    )
+                )
+                return
+            }
+
+            if region.identifier == configuration.workRegion?.identifier {
+                await signalHandler(
+                    ContextSignal(
+                        signalKey: "location.region_exit_work",
+                        source: "corelocation_region",
+                        weight: 0.85,
+                        polarity: .support,
+                        observedAt: observedAt,
+                        validForSec: 180
+                    )
+                )
+                return
+            }
+
+            guard let place = configuration.region(for: region.identifier) else {
+                return
+            }
+
             await signalHandler(
                 ContextSignal(
-                    signalKey: key,
+                    signalKey: "location.region_exit_place",
                     source: "corelocation_region",
                     weight: 0.85,
                     polarity: .support,
-                    observedAt: Date(),
-                    validForSec: 180
+                    observedAt: observedAt,
+                    validForSec: 180,
+                    payload: placePayload(from: place)
                 )
             )
         }
@@ -175,6 +260,18 @@ extension LocationCollector: @preconcurrency CLLocationManagerDelegate {
         region.notifyOnEntry = true
         region.notifyOnExit = true
         return region
+    }
+
+    private func placePayload(from region: RegionConfiguration) -> [String: JSONValue] {
+        var payload: [String: JSONValue] = [
+            "place_identifier": .string(region.identifier)
+        ]
+
+        if let displayName = region.displayName, !displayName.isEmpty {
+            payload["place_name"] = .string(displayName)
+        }
+
+        return payload
     }
 }
 #else

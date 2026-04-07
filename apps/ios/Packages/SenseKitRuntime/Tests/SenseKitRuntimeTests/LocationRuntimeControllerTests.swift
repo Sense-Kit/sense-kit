@@ -123,6 +123,54 @@ final class LocationRuntimeControllerTests: XCTestCase {
         XCTAssertEqual(collectorFactory.collector.restoreCount, 1)
     }
 
+    func testRefreshStartsLocationCollectorForCustomFixedPlace() async throws {
+        let store = LocationControllerTestRuntimeStore()
+        let settingsStore = InMemorySettingsStore(
+            configuration: RuntimeConfiguration(
+                deviceID: "device-1",
+                enabledFeatures: [.homeWork],
+                fixedPlaces: [
+                    .init(
+                        identifier: "place-gym",
+                        displayName: "Gym",
+                        latitude: 47.0,
+                        longitude: 8.0,
+                        radiusMeters: 150
+                    )
+                ]
+            )
+        )
+        let collectorFactory = TestLocationCollectorFactory()
+        let authorizationProvider = StubLocationAuthorizationProvider(status: .authorizedAlways)
+        let controller = LocationRuntimeController(
+            store: store,
+            settingsStore: settingsStore,
+            clock: FixedLocationClock(currentDate: date(hour: 8, minute: 15)),
+            locationCollectorFactory: collectorFactory,
+            locationAuthorizationProvider: authorizationProvider
+        )
+
+        let status = try await controller.refresh(
+            configuration: RuntimeConfiguration(
+                deviceID: "device-1",
+                enabledFeatures: [.homeWork],
+                fixedPlaces: [
+                    .init(
+                        identifier: "place-gym",
+                        displayName: "Gym",
+                        latitude: 47.0,
+                        longitude: 8.0,
+                        radiusMeters: 150
+                    )
+                ]
+            )
+        )
+
+        XCTAssertEqual(status, .running)
+        XCTAssertEqual(collectorFactory.collector.startCount, 1)
+        XCTAssertEqual(collectorFactory.collector.restoreCount, 1)
+    }
+
     func testHomeRegionSignalEmitsArrivedHomeEvent() async throws {
         let clock = FixedLocationClock(currentDate: date(hour: 18, minute: 22))
         let store = LocationControllerTestRuntimeStore()

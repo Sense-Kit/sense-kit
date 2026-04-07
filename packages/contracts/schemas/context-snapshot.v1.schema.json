@@ -44,11 +44,30 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["home", "work", "other"]
+          "enum": ["home", "work", "custom", "other"]
+        },
+        "identifier": {
+          "type": ["string", "null"]
+        },
+        "name": {
+          "type": ["string", "null"]
         },
         "freshness": {
           "type": "string",
           "enum": ["live", "recent", "stale"]
+        },
+        "coordinate": {
+          "type": ["object", "null"],
+          "required": ["latitude", "longitude"],
+          "additionalProperties": false,
+          "properties": {
+            "latitude": {
+              "type": "number"
+            },
+            "longitude": {
+              "type": "number"
+            }
+          }
         }
       }
     },

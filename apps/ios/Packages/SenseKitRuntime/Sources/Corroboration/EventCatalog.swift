@@ -63,6 +63,7 @@ public enum EventCatalog {
                 "motion.non_automotive_sustained_180s",
                 "location.speed_below_5_kmh_sustained_120s",
                 "place.arrived_home_or_work",
+                "place.arrived_saved_place",
                 "motion.walking_after_automotive"
             ],
             opposeSignalKeys: [
@@ -165,4 +166,3 @@ public enum EventCatalog {
         }
     }
 }
-

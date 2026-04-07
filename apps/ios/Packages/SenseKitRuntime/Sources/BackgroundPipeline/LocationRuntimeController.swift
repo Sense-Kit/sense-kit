@@ -257,7 +257,7 @@ public final class LocationRuntimeController {
 
     private func locationRequirement(for configuration: RuntimeConfiguration) -> LocationRequirement {
         let homeWorkEnabled = configuration.enabledFeatures.contains(.homeWork)
-        let hasRegions = configuration.homeRegion != nil || configuration.workRegion != nil
+        let hasRegions = !configuration.monitoredRegions.isEmpty
 
         if homeWorkEnabled && hasRegions {
             return .active(.always)

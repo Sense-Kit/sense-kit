@@ -15,6 +15,7 @@ public enum ModeHint: String, Codable, Sendable {
 public enum PlaceType: String, Codable, Sendable {
     case home
     case work
+    case custom
     case other
 }
 
@@ -57,6 +58,8 @@ public enum ContextEventType: String, Codable, CaseIterable, Sendable {
     case wakeConfirmed = "wake_confirmed"
     case drivingStarted = "driving_started"
     case drivingStopped = "driving_stopped"
+    case arrivedPlace = "arrived_place"
+    case leftPlace = "left_place"
     case arrivedHome = "arrived_home"
     case leftHome = "left_home"
     case arrivedWork = "arrived_work"
@@ -241,13 +244,31 @@ public struct ContextSnapshot: Codable, Equatable, Sendable {
         }
 
         public var type: PlaceType
+        public var identifier: String?
+        public var name: String?
         public var freshness: SnapshotFreshness
         public var coordinate: Coordinate?
 
-        public init(type: PlaceType, freshness: SnapshotFreshness, coordinate: Coordinate? = nil) {
+        public init(
+            type: PlaceType,
+            identifier: String? = nil,
+            name: String? = nil,
+            freshness: SnapshotFreshness,
+            coordinate: Coordinate? = nil
+        ) {
             self.type = type
+            self.identifier = identifier
+            self.name = name
             self.freshness = freshness
             self.coordinate = coordinate
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case type
+            case identifier
+            case name
+            case freshness
+            case coordinate
         }
     }
 
@@ -520,6 +541,7 @@ public struct RuntimeConfiguration: Codable, Equatable, Sendable {
     public var wakeWindowEndHour: Int
     public var drivingLocationBoostEnabled: Bool
     public var placeSharingMode: PlaceSharingMode
+    public var fixedPlaces: [RegionConfiguration]
     public var homeRegion: RegionConfiguration?
     public var workRegion: RegionConfiguration?
     public var openClaw: OpenClawConfiguration?
@@ -531,6 +553,7 @@ public struct RuntimeConfiguration: Codable, Equatable, Sendable {
         wakeWindowEndHour: Int = 11,
         drivingLocationBoostEnabled: Bool = false,
         placeSharingMode: PlaceSharingMode = .labelsOnly,
+        fixedPlaces: [RegionConfiguration] = [],
         homeRegion: RegionConfiguration? = nil,
         workRegion: RegionConfiguration? = nil,
         openClaw: OpenClawConfiguration? = nil
@@ -541,6 +564,7 @@ public struct RuntimeConfiguration: Codable, Equatable, Sendable {
         self.wakeWindowEndHour = wakeWindowEndHour
         self.drivingLocationBoostEnabled = drivingLocationBoostEnabled
         self.placeSharingMode = placeSharingMode
+        self.fixedPlaces = fixedPlaces
         self.homeRegion = homeRegion
         self.workRegion = workRegion
         self.openClaw = openClaw
@@ -553,6 +577,7 @@ public struct RuntimeConfiguration: Codable, Equatable, Sendable {
         case wakeWindowEndHour
         case drivingLocationBoostEnabled
         case placeSharingMode
+        case fixedPlaces
         case homeRegion
         case workRegion
         case openClaw
@@ -566,6 +591,7 @@ public struct RuntimeConfiguration: Codable, Equatable, Sendable {
         wakeWindowEndHour = try container.decodeIfPresent(Int.self, forKey: .wakeWindowEndHour) ?? 11
         drivingLocationBoostEnabled = try container.decodeIfPresent(Bool.self, forKey: .drivingLocationBoostEnabled) ?? false
         placeSharingMode = try container.decodeIfPresent(PlaceSharingMode.self, forKey: .placeSharingMode) ?? .labelsOnly
+        fixedPlaces = try container.decodeIfPresent([RegionConfiguration].self, forKey: .fixedPlaces) ?? []
         homeRegion = try container.decodeIfPresent(RegionConfiguration.self, forKey: .homeRegion)
         workRegion = try container.decodeIfPresent(RegionConfiguration.self, forKey: .workRegion)
         openClaw = try container.decodeIfPresent(OpenClawConfiguration.self, forKey: .openClaw)
@@ -579,15 +605,40 @@ public struct RuntimeConfiguration: Codable, Equatable, Sendable {
         try container.encode(wakeWindowEndHour, forKey: .wakeWindowEndHour)
         try container.encode(drivingLocationBoostEnabled, forKey: .drivingLocationBoostEnabled)
         try container.encode(placeSharingMode, forKey: .placeSharingMode)
+        try container.encode(fixedPlaces, forKey: .fixedPlaces)
         try container.encodeIfPresent(homeRegion, forKey: .homeRegion)
         try container.encodeIfPresent(workRegion, forKey: .workRegion)
         try container.encodeIfPresent(openClaw, forKey: .openClaw)
+    }
+
+    public var monitoredRegions: [RegionConfiguration] {
+        var regions = fixedPlaces
+
+        if let homeRegion, !regions.contains(where: { $0.identifier == homeRegion.identifier }) {
+            regions.append(homeRegion)
+        }
+
+        if let workRegion, !regions.contains(where: { $0.identifier == workRegion.identifier }) {
+            regions.append(workRegion)
+        }
+
+        return regions
+    }
+
+    public func region(for identifier: String?) -> RegionConfiguration? {
+        guard let identifier else {
+            return nil
+        }
+
+        return monitoredRegions.first { $0.identifier == identifier }
     }
 }
 
 public struct RuntimeState: Codable, Equatable, Sendable {
     public var lastEventTimestamps: [String: Date]
     public var currentPlace: PlaceType
+    public var currentPlaceIdentifier: String?
+    public var currentPlaceName: String?
     public var isDriving: Bool
     public var isWorkoutActive: Bool
     public var boostTimestamps: [String: Date]
@@ -596,6 +647,8 @@ public struct RuntimeState: Codable, Equatable, Sendable {
     public init(
         lastEventTimestamps: [String: Date] = [:],
         currentPlace: PlaceType = .other,
+        currentPlaceIdentifier: String? = nil,
+        currentPlaceName: String? = nil,
         isDriving: Bool = false,
         isWorkoutActive: Bool = false,
         boostTimestamps: [String: Date] = [:],
@@ -603,17 +656,27 @@ public struct RuntimeState: Codable, Equatable, Sendable {
     ) {
         self.lastEventTimestamps = lastEventTimestamps
         self.currentPlace = currentPlace
+        self.currentPlaceIdentifier = currentPlaceIdentifier
+        self.currentPlaceName = currentPlaceName
         self.isDriving = isDriving
         self.isWorkoutActive = isWorkoutActive
         self.boostTimestamps = boostTimestamps
         self.lastWakeAt = lastWakeAt
     }
 
-    public func lastEventDate(for eventType: ContextEventType) -> Date? {
-        lastEventTimestamps[eventType.rawValue]
+    public func lastEventDate(for eventType: ContextEventType, scope: String? = nil) -> Date? {
+        lastEventTimestamps[eventTimestampKey(for: eventType, scope: scope)]
     }
 
-    public mutating func setLastEventDate(_ date: Date, for eventType: ContextEventType) {
-        lastEventTimestamps[eventType.rawValue] = date
+    public mutating func setLastEventDate(_ date: Date, for eventType: ContextEventType, scope: String? = nil) {
+        lastEventTimestamps[eventTimestampKey(for: eventType, scope: scope)] = date
+    }
+
+    private func eventTimestampKey(for eventType: ContextEventType, scope: String?) -> String {
+        guard let scope, !scope.isEmpty else {
+            return eventType.rawValue
+        }
+
+        return "\(eventType.rawValue):\(scope)"
     }
 }

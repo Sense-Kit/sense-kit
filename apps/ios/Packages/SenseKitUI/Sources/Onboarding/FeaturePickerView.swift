@@ -9,11 +9,12 @@ public struct FeaturePickerView: View {
     @State private var draftFixedPlacesEnabled = false
     @State private var draftContinuousLocationEnabled = false
     @State private var draftWorkoutsEnabled = false
+    @State private var draftPlaceName = ""
+    @State private var draftPlaceSearchQuery = ""
+    @State private var draftPlaceRadiusMeters = 150.0
     @State private var showsMotionDetails = false
     @State private var showsPlaceDetails = false
     @State private var showsPlaceSetup = false
-    @State private var showsHomePlaceEditor = false
-    @State private var showsWorkPlaceEditor = false
     @State private var showsOpenClawChecklist = false
     @State private var hasLoadedDraft = false
     @State private var hasUnlockedFollowUp = false
@@ -22,8 +23,8 @@ public struct FeaturePickerView: View {
         case endpoint
         case hookToken
         case secret
-        case homeSearch
-        case workSearch
+        case placeName
+        case placeSearch
     }
 
     public init(model: SenseKitAppModel) {
@@ -217,7 +218,7 @@ public struct FeaturePickerView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             SetupChoiceRow(
                                 title: "Fixed places",
-                                detail: "Arrival and departure events for saved places like home or work.",
+                                detail: "Arrival and departure events for saved places you name yourself, like gym, office, studio, or home.",
                                 isSelected: draftFixedPlacesEnabled
                             ) {
                                 draftFixedPlacesEnabled.toggle()
@@ -343,77 +344,78 @@ public struct FeaturePickerView: View {
                         if draftFixedPlacesEnabled {
                             DisclosureGroup("Manage fixed places", isExpanded: $showsPlaceSetup) {
                                 VStack(alignment: .leading, spacing: 16) {
-                                    Text("Add the fixed places SenseKit should watch. Today that means Home and Work.")
+                                    Text("Add the places SenseKit should watch. You choose the name OpenClaw will see, like Gym, Office, Studio, or Parents.")
                                         .font(.footnote)
                                         .foregroundStyle(.secondary)
 
-                                    HStack(spacing: 10) {
-                                        if !showsHomePlaceEditor {
-                                            Button("Add Home") {
-                                                showsHomePlaceEditor = true
-                                            }
-                                            .buttonStyle(.bordered)
-                                        }
-
-                                        if !showsWorkPlaceEditor {
-                                            Button("Add Work") {
-                                                showsWorkPlaceEditor = true
-                                            }
-                                            .buttonStyle(.bordered)
-                                        }
-                                    }
-
-                                    if !showsHomePlaceEditor && !showsWorkPlaceEditor {
+                                    if model.fixedPlaces.isEmpty {
                                         Text("No fixed places added yet.")
                                             .font(.footnote)
                                             .foregroundStyle(.secondary)
+                                    } else {
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            ForEach(model.fixedPlaces, id: \.identifier) { place in
+                                                fixedPlaceRow(place)
+                                            }
+                                        }
                                     }
 
-                                    if showsHomePlaceEditor {
-                                        Divider()
+                                    Divider()
 
-                                        placeRegionEditor(
-                                            title: "Home",
-                                            summary: model.homeRegionSummary,
-                                            radiusMeters: $model.homeRadiusMeters,
-                                            searchQuery: $model.homeSearchQuery,
-                                            searchField: .homeSearch,
-                                            useCurrentLocationAction: {
-                                                await model.setHomeRegionFromCurrentLocation()
-                                            },
-                                            searchAction: {
-                                                await model.searchHomeRegionFromAddress()
-                                            },
-                                            clearAction: {
-                                                await model.clearHomeRegion()
-                                                showsHomePlaceEditor = false
-                                            },
-                                            isCapturing: model.isCapturingHomeRegion,
-                                            isSearching: model.isSearchingHomeRegion
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        Text("Add a place")
+                                            .font(.subheadline.weight(.semibold))
+
+                                        TextField("Place name", text: $draftPlaceName)
+                                            .setupTextFieldStyle()
+                                            .focused($focusedField, equals: .placeName)
+
+                                        Stepper(
+                                            "Radius: \(Int(draftPlaceRadiusMeters)) m",
+                                            value: $draftPlaceRadiusMeters,
+                                            in: 50...500,
+                                            step: 25
                                         )
-                                    }
 
-                                    if showsWorkPlaceEditor {
-                                        Divider()
+                                        Button {
+                                            dismissInput()
+                                            Task {
+                                                await addFixedPlaceFromCurrentLocation()
+                                            }
+                                        } label: {
+                                            SetupActionLabel(
+                                                title: currentLocationButtonTitle,
+                                                isRunning: model.isCapturingFixedPlace
+                                            )
+                                        }
+                                        .disabled(model.isBusy || draftPlaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-                                        placeRegionEditor(
-                                            title: "Work",
-                                            summary: model.workRegionSummary,
-                                            radiusMeters: $model.workRadiusMeters,
-                                            searchQuery: $model.workSearchQuery,
-                                            searchField: .workSearch,
-                                            useCurrentLocationAction: {
-                                                await model.setWorkRegionFromCurrentLocation()
-                                            },
-                                            searchAction: {
-                                                await model.searchWorkRegionFromAddress()
-                                            },
-                                            clearAction: {
-                                                await model.clearWorkRegion()
-                                                showsWorkPlaceEditor = false
-                                            },
-                                            isCapturing: model.isCapturingWorkRegion,
-                                            isSearching: model.isSearchingWorkRegion
+                                        TextField("Search address or landmark", text: $draftPlaceSearchQuery)
+                                            .setupTextFieldStyle()
+                                            .focused($focusedField, equals: .placeSearch)
+                                            .submitLabel(.search)
+                                            .onSubmit {
+                                                dismissInput()
+                                                Task {
+                                                    await addFixedPlaceFromSearch()
+                                                }
+                                            }
+
+                                        Button {
+                                            dismissInput()
+                                            Task {
+                                                await addFixedPlaceFromSearch()
+                                            }
+                                        } label: {
+                                            SetupActionLabel(
+                                                title: searchPlaceButtonTitle,
+                                                isRunning: model.isSearchingFixedPlace
+                                            )
+                                        }
+                                        .disabled(
+                                            model.isBusy
+                                                || draftPlaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                                || draftPlaceSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                         )
                                     }
                                 }
@@ -522,7 +524,7 @@ public struct FeaturePickerView: View {
                         Picker("Test Event", selection: $model.selectedTestEvent) {
                             Text("Wake Confirmed").tag(ContextEventType.wakeConfirmed)
                             Text("Driving Started").tag(ContextEventType.drivingStarted)
-                            Text("Arrived Home").tag(ContextEventType.arrivedHome)
+                            Text("Arrived at Place").tag(ContextEventType.arrivedPlace)
                             Text("Workout Ended").tag(ContextEventType.workoutEnded)
                         }
 
@@ -560,15 +562,15 @@ public struct FeaturePickerView: View {
                     InspirationExample(
                         title: "Gentle morning handoff",
                         setup: "Motion & Routine + labels-only place data",
-                        result: "OpenClaw gets your wake signal first, then can wait for arrived_work before sending a heavier planning brief."
+                        result: "OpenClaw gets your wake signal first, then can wait until you arrive at a saved place like Office before sending a heavier planning brief."
                     )
 
                     Divider()
 
                     InspirationExample(
                         title: "Private commute mode",
-                        setup: "Motion & Routine + Places + exact home/work coordinates",
-                        result: "OpenClaw can tell the difference between leaving home, driving, and arriving at work without needing you to trigger anything manually."
+                        setup: "Motion & Routine + Places + exact saved-place coordinates",
+                        result: "OpenClaw can tell the difference between leaving one saved place, driving, and arriving at another without needing you to trigger anything manually."
                     )
 
                     Divider()
@@ -584,69 +586,34 @@ public struct FeaturePickerView: View {
     }
 
     @ViewBuilder
-    private func placeRegionEditor(
-        title: String,
-        summary: String,
-        radiusMeters: Binding<Double>,
-        searchQuery: Binding<String>,
-        searchField: Field,
-        useCurrentLocationAction: @escaping () async -> Void,
-        searchAction: @escaping () async -> Void,
-        clearAction: @escaping () async -> Void,
-        isCapturing: Bool,
-        isSearching: Bool
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-            LabeledContent(title, value: summary)
-            Stepper("\(title) radius: \(Int(radiusMeters.wrappedValue)) m", value: radiusMeters, in: 50...500, step: 25)
-
-            Button {
-                dismissInput()
-                Task {
-                    await useCurrentLocationAction()
+    private func fixedPlaceRow(_ place: RegionConfiguration) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(place.displayName ?? place.identifier)
+                        .font(.subheadline.weight(.semibold))
+                    Text(placeSummary(place))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-            } label: {
-                SetupActionLabel(
-                    title: "Use Current Location as \(title)",
-                    isRunning: isCapturing
-                )
-            }
-            .disabled(model.isBusy)
 
-            TextField("Search \(title.lowercased()) address", text: searchQuery)
-                .setupTextFieldStyle()
-                .focused($focusedField, equals: searchField)
-                .submitLabel(.search)
-                .onSubmit {
+                Spacer(minLength: 12)
+
+                Button("Remove") {
                     dismissInput()
                     Task {
-                        await searchAction()
+                        await model.removeFixedPlace(identifier: place.identifier)
                     }
                 }
-
-            Button {
-                dismissInput()
-                Task {
-                    await searchAction()
-                }
-            } label: {
-                SetupActionLabel(
-                    title: "Search Address for \(title)",
-                    isRunning: isSearching
-                )
+                .disabled(model.isBusy)
             }
-            .disabled(model.isBusy || searchQuery.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-            Button("Remove \(title)") {
-                dismissInput()
-                Task {
-                    await clearAction()
-                }
-            }
-            .disabled(model.isBusy || summary == "Not set")
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+        )
     }
 
     private var savedSelectionsExist: Bool {
@@ -655,8 +622,7 @@ public struct FeaturePickerView: View {
             || model.placesSelectionEnabled
             || model.drivingLocationBoostEnabled
             || model.workoutsSelectionEnabled
-            || model.homeRegionSummary != "Not set"
-            || model.workRegionSummary != "Not set"
+            || !model.fixedPlaces.isEmpty
     }
 
     private var draftMatchesSavedSelections: Bool {
@@ -681,10 +647,26 @@ public struct FeaturePickerView: View {
     private var placeSharingHelpText: String {
         switch model.placeSharingMode {
         case .labelsOnly:
-            return "Recommended default. OpenClaw only receives place labels like home or work. Exact coordinates stay on the phone."
+            return "Recommended default. OpenClaw only receives the place names you chose. Exact coordinates stay on the phone."
         case .preciseCoordinates:
-            return "OpenClaw also receives the saved home or work coordinates when SenseKit knows you are in one of those places."
+            return "OpenClaw also receives the saved coordinates for a place when SenseKit knows you are there."
         }
+    }
+
+    private var currentLocationButtonTitle: String {
+        let trimmedName = draftPlaceName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedName.isEmpty {
+            return "Use Current Location"
+        }
+        return "Use Current Location for \(trimmedName)"
+    }
+
+    private var searchPlaceButtonTitle: String {
+        let trimmedName = draftPlaceName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedName.isEmpty {
+            return "Search and Add Place"
+        }
+        return "Search and Add \(trimmedName)"
     }
 
     private var hasPlaceSelection: Bool {
@@ -730,9 +712,7 @@ public struct FeaturePickerView: View {
         draftWorkoutsEnabled = model.workoutsSelectionEnabled
         showsMotionDetails = hasMotionSelection
         showsPlaceDetails = hasPlaceSelection
-        showsPlaceSetup = draftFixedPlacesEnabled && (model.homeRegionSummary != "Not set" || model.workRegionSummary != "Not set")
-        showsHomePlaceEditor = model.homeRegionSummary != "Not set"
-        showsWorkPlaceEditor = model.workRegionSummary != "Not set"
+        showsPlaceSetup = draftFixedPlacesEnabled
         showsOpenClawChecklist = model.showsOpenClawSetupGuide
         hasUnlockedFollowUp = savedSelectionsExist
         hasLoadedDraft = true
@@ -740,6 +720,47 @@ public struct FeaturePickerView: View {
 
     private func dismissInput() {
         focusedField = nil
+    }
+
+    private func addFixedPlaceFromCurrentLocation() async {
+        let added = await model.addFixedPlaceFromCurrentLocation(
+            name: draftPlaceName,
+            radiusMeters: draftPlaceRadiusMeters
+        )
+
+        if added {
+            clearPlaceDrafts()
+            showsPlaceSetup = true
+        }
+    }
+
+    private func addFixedPlaceFromSearch() async {
+        let added = await model.addFixedPlaceFromAddress(
+            name: draftPlaceName,
+            query: draftPlaceSearchQuery,
+            radiusMeters: draftPlaceRadiusMeters
+        )
+
+        if added {
+            clearPlaceDrafts()
+            showsPlaceSetup = true
+        }
+    }
+
+    private func clearPlaceDrafts() {
+        draftPlaceName = ""
+        draftPlaceSearchQuery = ""
+        draftPlaceRadiusMeters = 150
+    }
+
+    private func placeSummary(_ place: RegionConfiguration) -> String {
+        let coordinateText = String(
+            format: "%.5f, %.5f",
+            locale: Locale(identifier: "en_US_POSIX"),
+            place.latitude,
+            place.longitude
+        )
+        return "\(coordinateText) · \(Int(place.radiusMeters)) m"
     }
 
     @ViewBuilder

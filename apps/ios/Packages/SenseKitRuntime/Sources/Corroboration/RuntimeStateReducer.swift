@@ -15,14 +15,28 @@ enum RuntimeStateReducer {
             state.isDriving = true
         case .drivingStopped:
             state.isDriving = false
+        case .arrivedPlace:
+            state.currentPlace = .custom
+        case .leftPlace:
+            state.currentPlace = .other
+            state.currentPlaceIdentifier = nil
+            state.currentPlaceName = nil
         case .arrivedHome:
             state.currentPlace = .home
+            state.currentPlaceIdentifier = "home"
+            state.currentPlaceName = "Home"
         case .leftHome:
             state.currentPlace = .other
+            state.currentPlaceIdentifier = nil
+            state.currentPlaceName = nil
         case .arrivedWork:
             state.currentPlace = .work
+            state.currentPlaceIdentifier = "work"
+            state.currentPlaceName = "Work"
         case .leftWork:
             state.currentPlace = .other
+            state.currentPlaceIdentifier = nil
+            state.currentPlaceName = nil
         case .workoutStarted:
             state.isWorkoutActive = true
         case .workoutEnded:

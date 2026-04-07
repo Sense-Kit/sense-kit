@@ -106,6 +106,38 @@ public struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            if !model.fixedPlaces.isEmpty {
+                Section("Saved Places") {
+                    ForEach(model.fixedPlaces, id: \.identifier) { place in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .top, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(place.displayName ?? place.identifier)
+                                        .font(.subheadline.weight(.semibold))
+                                    Text(placeSummary(place))
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer(minLength: 12)
+
+                                Button("Remove") {
+                                    dismissInput()
+                                    Task {
+                                        await model.removeFixedPlace(identifier: place.identifier)
+                                    }
+                                }
+                                .disabled(model.isBusy)
+                            }
+                        }
+                    }
+
+                    Text("Add new named places from Setup. This list shows the fixed places SenseKit is currently watching.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Home / Work") {
                 VStack(alignment: .leading, spacing: 6) {
                     LabeledContent("Home", value: model.homeRegionSummary)
@@ -230,7 +262,7 @@ public struct SettingsView: View {
     }
 
     private var testableEvents: [ContextEventType] {
-        [.wakeConfirmed, .drivingStarted, .arrivedHome, .workoutEnded]
+        [.wakeConfirmed, .drivingStarted, .arrivedPlace, .workoutEnded]
     }
 
     private func label(for eventType: ContextEventType) -> String {
@@ -239,8 +271,8 @@ public struct SettingsView: View {
             return "Wake Confirmed"
         case .drivingStarted:
             return "Driving Started"
-        case .arrivedHome:
-            return "Arrived Home"
+        case .arrivedPlace:
+            return "Arrived at Place"
         case .workoutEnded:
             return "Workout Ended"
         default:
@@ -250,6 +282,16 @@ public struct SettingsView: View {
 
     private func dismissInput() {
         focusedField = nil
+    }
+
+    private func placeSummary(_ place: RegionConfiguration) -> String {
+        let coordinateText = String(
+            format: "%.5f, %.5f",
+            locale: Locale(identifier: "en_US_POSIX"),
+            place.latitude,
+            place.longitude
+        )
+        return "\(coordinateText) · \(Int(place.radiusMeters)) m"
     }
 }
 

@@ -19,7 +19,12 @@ public struct DefaultSnapshotProvider: SnapshotProvider {
                 focus: nil,
                 workout: state.isWorkoutActive ? .active : .inactive
             ),
-            place: .init(type: state.currentPlace, freshness: .recent),
+            place: .init(
+                type: state.currentPlace,
+                identifier: state.currentPlaceIdentifier,
+                name: state.currentPlaceName,
+                freshness: .recent
+            ),
             calendar: .init(inMeeting: false, nextMeetingInMin: nil, freshness: .stale),
             device: .init(batteryPercentBucket: 100, charging: false)
         )

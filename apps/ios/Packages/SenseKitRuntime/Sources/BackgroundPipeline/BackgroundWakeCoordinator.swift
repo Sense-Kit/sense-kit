@@ -42,6 +42,13 @@ public actor BackgroundWakeCoordinator {
             return [try await processMotionObservation(observation, signal: signal)]
         }
 
+        if let transition = PlaceTransition(signal: signal) {
+            if let result = try await processPlaceTransition(transition, signal: signal) {
+                return [result]
+            }
+            return []
+        }
+
         let evaluations = try await engine.ingest(signal)
         guard !evaluations.isEmpty else { return [] }
 
@@ -73,7 +80,9 @@ public actor BackgroundWakeCoordinator {
         )
 
         var state = try await store.loadRuntimeState()
-        RuntimeStateReducer.apply(eventType, at: clock.now(), to: &state)
+        if !applyManualPlaceState(for: eventType, configuration: configuration, state: &state) {
+            RuntimeStateReducer.apply(eventType, at: clock.now(), to: &state)
+        }
         try await store.saveRuntimeState(state)
 
         let event = ContextEvent(
@@ -209,6 +218,89 @@ public actor BackgroundWakeCoordinator {
         )
     }
 
+    private func processPlaceTransition(
+        _ transition: PlaceTransition,
+        signal: ContextSignal
+    ) async throws -> ProcessingResult? {
+        try await store.appendDebugEntry(
+            DebugTimelineEntry(
+                createdAt: clock.now(),
+                category: .signal,
+                message: "Received signal \(signal.signalKey)",
+                payload: try payloadString(signal)
+            )
+        )
+
+        let configuration = try await settingsStore.load()
+        let eventType: ContextEventType = transition.kind == .enter ? .arrivedPlace : .leftPlace
+        let placeName = transition.name ?? configuration.region(for: transition.identifier)?.displayName ?? transition.identifier
+        var state = try await store.loadRuntimeState()
+
+        guard placeCooldownOK(for: eventType, placeIdentifier: transition.identifier, state: state) else {
+            try await store.appendDebugEntry(
+                DebugTimelineEntry(
+                    createdAt: clock.now(),
+                    category: .evaluation,
+                    message: "Cooldown blocked \(eventType.rawValue) for \(placeName)"
+                )
+            )
+            return nil
+        }
+
+        switch transition.kind {
+        case .enter:
+            guard state.currentPlaceIdentifier != transition.identifier else {
+                return nil
+            }
+            state.currentPlace = .custom
+            state.currentPlaceIdentifier = transition.identifier
+            state.currentPlaceName = placeName
+        case .exit:
+            guard state.currentPlaceIdentifier == transition.identifier else {
+                return nil
+            }
+            state.currentPlace = .other
+            state.currentPlaceIdentifier = nil
+            state.currentPlaceName = nil
+        }
+
+        state.setLastEventDate(clock.now(), for: eventType, scope: transition.identifier)
+        try await store.saveRuntimeState(state)
+
+        let event = ContextEvent(
+            eventType: eventType,
+            occurredAt: signal.observedAt,
+            confidence: signal.weight,
+            reasons: [
+                signal.signalKey,
+                "place.\(transition.identifier)"
+            ],
+            modeHint: .normal,
+            cooldownSec: 600,
+            dedupeKey: dedupeKey(
+                for: eventType,
+                deviceID: configuration.deviceID,
+                scope: transition.identifier,
+                at: clock.now()
+            )
+        )
+
+        try await store.appendDebugEntry(
+            DebugTimelineEntry(
+                createdAt: clock.now(),
+                category: .event,
+                message: "Emitted \(eventType.rawValue)",
+                payload: try payloadString(event)
+            )
+        )
+
+        return try await process(
+            event: event,
+            configuration: configuration,
+            payloadSummary: "\(eventType.rawValue) place=\(placeName) confidence=\(signal.weight)"
+        )
+    }
+
     private func process(
         event: ContextEvent,
         configuration: RuntimeConfiguration,
@@ -256,20 +348,50 @@ public actor BackgroundWakeCoordinator {
         return date.addingTimeInterval(offsets[index])
     }
 
+    private func placeCooldownOK(for eventType: ContextEventType, placeIdentifier: String, state: RuntimeState) -> Bool {
+        guard let lastDate = state.lastEventDate(for: eventType, scope: placeIdentifier) else {
+            return true
+        }
+
+        return clock.now().timeIntervalSince(lastDate) >= 600
+    }
+
+    private func applyManualPlaceState(
+        for eventType: ContextEventType,
+        configuration: RuntimeConfiguration,
+        state: inout RuntimeState
+    ) -> Bool {
+        switch eventType {
+        case .arrivedPlace:
+            guard let place = configuration.monitoredRegions.first else {
+                return false
+            }
+            state.currentPlace = placeType(for: place.identifier, configuration: configuration)
+            state.currentPlaceIdentifier = place.identifier
+            state.currentPlaceName = place.displayName ?? legacyPlaceName(for: place.identifier)
+            state.setLastEventDate(clock.now(), for: eventType, scope: place.identifier)
+            return true
+        case .leftPlace:
+            let placeIdentifier = state.currentPlaceIdentifier
+            RuntimeStateReducer.apply(eventType, at: clock.now(), to: &state)
+            if let placeIdentifier {
+                state.setLastEventDate(clock.now(), for: eventType, scope: placeIdentifier)
+            }
+            return true
+        default:
+            return false
+        }
+    }
+
     private func applyPlaceSharing(to snapshot: ContextSnapshot, configuration: RuntimeConfiguration) -> ContextSnapshot {
         guard configuration.placeSharingMode == .preciseCoordinates else {
             return snapshot
         }
 
-        let coordinate: ContextSnapshot.Place.Coordinate?
-        switch snapshot.place.type {
-        case .home:
-            coordinate = placeCoordinate(from: configuration.homeRegion)
-        case .work:
-            coordinate = placeCoordinate(from: configuration.workRegion)
-        case .other:
-            coordinate = nil
-        }
+        let coordinate = placeCoordinate(
+            from: configuration.region(for: snapshot.place.identifier)
+                ?? legacyPlaceRegion(for: snapshot.place.type, configuration: configuration)
+        )
 
         guard let coordinate else {
             return snapshot
@@ -289,6 +411,47 @@ public actor BackgroundWakeCoordinator {
             latitude: region.latitude,
             longitude: region.longitude
         )
+    }
+
+    private func dedupeKey(for eventType: ContextEventType, deviceID: String, scope: String, at date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withColonSeparatorInTime, .withDashSeparatorInDate]
+        let minutePrefix = formatter.string(from: date).prefix(16)
+        return "\(deviceID):\(eventType.rawValue):\(scope):\(minutePrefix)"
+    }
+
+    private func legacyPlaceRegion(for placeType: PlaceType, configuration: RuntimeConfiguration) -> RegionConfiguration? {
+        switch placeType {
+        case .home:
+            return configuration.homeRegion
+        case .work:
+            return configuration.workRegion
+        case .custom, .other:
+            return nil
+        }
+    }
+
+    private func legacyPlaceName(for identifier: String) -> String? {
+        switch identifier {
+        case "home":
+            return "Home"
+        case "work":
+            return "Work"
+        default:
+            return nil
+        }
+    }
+
+    private func placeType(for identifier: String, configuration: RuntimeConfiguration) -> PlaceType {
+        if identifier == configuration.homeRegion?.identifier {
+            return .home
+        }
+
+        if identifier == configuration.workRegion?.identifier {
+            return .work
+        }
+
+        return .custom
     }
 }
 
@@ -314,5 +477,38 @@ private struct HealthSnapshotChange {
             return ["health.snapshot_changed"]
         }
         return domains.map { "health_domain.\($0)" }
+    }
+}
+
+private struct PlaceTransition {
+    enum Kind {
+        case enter
+        case exit
+    }
+
+    let kind: Kind
+    let identifier: String
+    let name: String?
+
+    init?(signal: ContextSignal) {
+        switch signal.signalKey {
+        case "location.region_enter_place":
+            kind = .enter
+        case "location.region_exit_place":
+            kind = .exit
+        default:
+            return nil
+        }
+
+        guard case .string(let identifier)? = signal.payload["place_identifier"] else {
+            return nil
+        }
+
+        self.identifier = identifier
+        if case .string(let name)? = signal.payload["place_name"] {
+            self.name = name
+        } else {
+            self.name = nil
+        }
     }
 }

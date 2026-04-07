@@ -505,6 +505,85 @@ struct SenseKitAppModelTests {
     }
 
     @Test
+    func addFixedPlaceFromAddressSavesNamedCustomPlace() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(deviceID: "device-1")
+            ),
+            nextSearchRegion: RegionConfiguration(
+                identifier: "placeholder",
+                latitude: 47.42310,
+                longitude: 8.54760,
+                radiusMeters: 200
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+
+        await model.addFixedPlaceFromAddress(
+            name: "Gym",
+            query: "Dubsstrasse 2 Zurich",
+            radiusMeters: 200
+        )
+
+        let searchRequests = await service.searchRequests
+        let savedConfiguration = await service.savedConfigurations.last
+        let savedPlace = try #require(savedConfiguration?.fixedPlaces.first)
+        #expect(searchRequests.count == 1)
+        #expect(searchRequests.first?.0.hasPrefix("place-gym") == true)
+        #expect(searchRequests.first?.1 == "Dubsstrasse 2 Zurich")
+        #expect(searchRequests.first?.2 == 200)
+        #expect(savedConfiguration?.enabledFeatures.contains(.homeWork) == true)
+        #expect(savedPlace.identifier.hasPrefix("place-gym"))
+        #expect(savedPlace.displayName == "Gym")
+        #expect(savedPlace.latitude == 47.42310)
+        #expect(savedPlace.longitude == 8.54760)
+        #expect(model.fixedPlaces.count == 1)
+        #expect(model.fixedPlaces.first?.displayName == "Gym")
+        #expect(model.feedback?.message == "Gym added and saved.")
+    }
+
+    @Test
+    func removeFixedPlacePersistsUpdatedConfiguration() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(
+                    deviceID: "device-1",
+                    enabledFeatures: [.homeWork],
+                    fixedPlaces: [
+                        RegionConfiguration(
+                            identifier: "place-gym",
+                            displayName: "Gym",
+                            latitude: 47.42310,
+                            longitude: 8.54760,
+                            radiusMeters: 200
+                        ),
+                        RegionConfiguration(
+                            identifier: "place-office",
+                            displayName: "Office",
+                            latitude: 47.37690,
+                            longitude: 8.54170,
+                            radiusMeters: 150
+                        )
+                    ]
+                )
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        await model.removeFixedPlace(identifier: "place-gym")
+
+        let savedConfiguration = await service.savedConfigurations.last
+        #expect(savedConfiguration?.fixedPlaces.count == 1)
+        #expect(savedConfiguration?.fixedPlaces.first?.identifier == "place-office")
+        #expect(model.fixedPlaces.count == 1)
+        #expect(model.fixedPlaces.first?.displayName == "Office")
+        #expect(model.feedback?.message == "Gym removed.")
+    }
+
+    @Test
     func refreshStateUpdatesLastStatusRefreshAt() async throws {
         let service = FakeSenseKitAppService(
             initialState: SenseKitLoadedState(configuration: RuntimeConfiguration(deviceID: "device-1"))
