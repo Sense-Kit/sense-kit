@@ -1,169 +1,132 @@
 import Foundation
 
+struct MotionActivityObservation: Equatable, Sendable {
+    static let signalKey = "motion.activity_observed"
+
+    let primaryKind: String
+    let flags: [String]
+    let confidence: String
+
+    init(primaryKind: String, flags: [String], confidence: String) {
+        let normalizedFlags = Array(Set(flags)).sorted()
+        self.primaryKind = primaryKind
+        self.flags = normalizedFlags.isEmpty ? ["unknown"] : normalizedFlags
+        self.confidence = confidence
+    }
+
+    init?(signal: ContextSignal) {
+        guard signal.signalKey == Self.signalKey else { return nil }
+        guard case .string(let primaryKind)? = signal.payload["primary_kind"] else { return nil }
+        guard case .string(let confidence)? = signal.payload["confidence"] else { return nil }
+
+        var flags: [String] = []
+        if case .array(let values)? = signal.payload["flags"] {
+            flags = values.compactMap { value in
+                guard case .string(let flag) = value else { return nil }
+                return flag
+            }
+        }
+
+        self.init(primaryKind: primaryKind, flags: flags, confidence: confidence)
+    }
+
+    var reasons: [String] {
+        ["motion.primary.\(primaryKind)", "motion.confidence.\(confidence)"] + flags.map { "motion.flag.\($0)" }
+    }
+
+    var confidenceScore: Double {
+        switch confidence {
+        case "high":
+            return 1.0
+        case "medium":
+            return 0.67
+        case "low":
+            return 0.34
+        default:
+            return 0.5
+        }
+    }
+
+    func makeSignal(observedAt: Date, signalID: String = UUID().uuidString) -> ContextSignal {
+        ContextSignal(
+            signalID: signalID,
+            signalKey: Self.signalKey,
+            source: "coremotion_activity",
+            weight: confidenceScore,
+            polarity: .support,
+            observedAt: observedAt,
+            validForSec: 1,
+            payload: [
+                "primary_kind": .string(primaryKind),
+                "confidence": .string(confidence),
+                "flags": .array(flags.map(JSONValue.string))
+            ]
+        )
+    }
+}
+
 #if os(iOS) && canImport(CoreMotion)
 import CoreMotion
 
 @MainActor
 public final class MotionCollector: NSObject, ContextSignalCollector {
     private let activityManager = CMMotionActivityManager()
-    private let queue = OperationQueue()
     private let signalHandler: SignalHandler
     private let clock: Clock
 
-    private var lastStationaryAt: Date?
-    private var lastActivityKind: String?
-    private var walkingTask: Task<Void, Never>?
-    private var automotiveTask: Task<Void, Never>?
-    private var nonAutomotiveTask: Task<Void, Never>?
+    private var lastObservation: MotionActivityObservation?
 
     public init(signalHandler: @escaping SignalHandler, clock: Clock = SystemClock()) {
         self.signalHandler = signalHandler
         self.clock = clock
         super.init()
-        queue.qualityOfService = .utility
     }
 
     public func start() async {
         guard CMMotionActivityManager.isActivityAvailable() else { return }
-        activityManager.startActivityUpdates(to: queue) { [weak self] activity in
+        activityManager.startActivityUpdates(to: .main) { [weak self] activity in
             guard let self, let activity else { return }
-            Task { @MainActor in
-                await self.handle(activity: activity)
-            }
+            self.handle(activity: activity)
         }
     }
 
     public func stop() {
-        walkingTask?.cancel()
-        automotiveTask?.cancel()
-        nonAutomotiveTask?.cancel()
         activityManager.stopActivityUpdates()
     }
 
-    private func handle(activity: CMMotionActivity) async {
+    private func handle(activity: CMMotionActivity) {
         let now = clock.now()
-        let kind = activityKind(activity)
+        let observation = MotionActivityObservation(
+            primaryKind: primaryKind(activity),
+            flags: activityFlags(activity),
+            confidence: activity.confidence.description
+        )
+        guard observation != lastObservation else { return }
+        lastObservation = observation
 
-        if kind == "stationary" {
-            lastStationaryAt = now
-        }
-
-        if kind == "walking", lastActivityKind == "stationary", let stationaryAt = lastStationaryAt, now.timeIntervalSince(stationaryAt) >= 10_800 {
-            await signalHandler(
-                ContextSignal(
-                    signalKey: "motion.stationary_to_walking_after_rest",
-                    source: "coremotion_activity",
-                    weight: 0.35,
-                    polarity: .support,
-                    observedAt: now,
-                    validForSec: 120,
-                    payload: ["confidence": .string(activity.confidence.description)]
-                )
-            )
-        }
-
-        if kind == "walking" {
-            scheduleWalkingConfirmation(startedAt: now)
-        } else {
-            walkingTask?.cancel()
-        }
-
-        if kind == "automotive" {
-            await signalHandler(
-                ContextSignal(
-                    signalKey: "motion.automotive_entered",
-                    source: "coremotion_activity",
-                    weight: 0.45,
-                    polarity: .support,
-                    observedAt: now,
-                    validForSec: 180,
-                    payload: ["confidence": .string(activity.confidence.description)]
-                )
-            )
-            scheduleAutomotiveConfirmation(startedAt: now)
-        } else {
-            automotiveTask?.cancel()
-            scheduleNonAutomotiveConfirmation(startedAt: now)
-        }
-
-        if kind == "walking" || kind == "running" {
-            await signalHandler(
-                ContextSignal(
-                    signalKey: "motion.walking_or_running",
-                    source: "coremotion_activity",
-                    weight: 0.25,
-                    polarity: .oppose,
-                    observedAt: now,
-                    validForSec: 180,
-                    payload: ["kind": .string(kind)]
-                )
-            )
-        }
-
-        lastActivityKind = kind
-    }
-
-    private func scheduleWalkingConfirmation(startedAt: Date) {
-        walkingTask?.cancel()
-        walkingTask = Task {
-            try? await Task.sleep(for: .seconds(60))
-            guard !Task.isCancelled else { return }
-            await signalHandler(
-                ContextSignal(
-                    signalKey: "motion.walking_sustained_60s",
-                    source: "coremotion_activity",
-                    weight: 0.20,
-                    polarity: .support,
-                    observedAt: startedAt.addingTimeInterval(60),
-                    validForSec: 120
-                )
-            )
+        Task {
+            await signalHandler(observation.makeSignal(observedAt: now))
         }
     }
 
-    private func scheduleAutomotiveConfirmation(startedAt: Date) {
-        automotiveTask?.cancel()
-        automotiveTask = Task {
-            try? await Task.sleep(for: .seconds(180))
-            guard !Task.isCancelled else { return }
-            await signalHandler(
-                ContextSignal(
-                    signalKey: "motion.automotive_sustained_180s",
-                    source: "coremotion_activity",
-                    weight: 0.20,
-                    polarity: .support,
-                    observedAt: startedAt.addingTimeInterval(180),
-                    validForSec: 180
-                )
-            )
-        }
-    }
-
-    private func scheduleNonAutomotiveConfirmation(startedAt: Date) {
-        nonAutomotiveTask?.cancel()
-        nonAutomotiveTask = Task {
-            try? await Task.sleep(for: .seconds(180))
-            guard !Task.isCancelled else { return }
-            await signalHandler(
-                ContextSignal(
-                    signalKey: "motion.non_automotive_sustained_180s",
-                    source: "coremotion_activity",
-                    weight: 0.45,
-                    polarity: .support,
-                    observedAt: startedAt.addingTimeInterval(180),
-                    validForSec: 180
-                )
-            )
-        }
-    }
-
-    private func activityKind(_ activity: CMMotionActivity) -> String {
+    private func primaryKind(_ activity: CMMotionActivity) -> String {
         if activity.automotive { return "automotive" }
         if activity.walking { return "walking" }
         if activity.running { return "running" }
         if activity.stationary { return "stationary" }
         if activity.cycling { return "cycling" }
         return "unknown"
+    }
+
+    private func activityFlags(_ activity: CMMotionActivity) -> [String] {
+        var flags: [String] = []
+        if activity.automotive { flags.append("automotive") }
+        if activity.walking { flags.append("walking") }
+        if activity.running { flags.append("running") }
+        if activity.stationary { flags.append("stationary") }
+        if activity.cycling { flags.append("cycling") }
+        if flags.isEmpty { flags.append("unknown") }
+        return flags
     }
 }
 

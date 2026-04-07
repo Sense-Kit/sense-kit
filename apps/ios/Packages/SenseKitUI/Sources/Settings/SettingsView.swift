@@ -49,6 +49,13 @@ public struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Motion Activity Alpha") {
+                LabeledContent("Motion collector", value: model.wakeCollectorStatusText)
+                Text(model.wakeCollectorHelpText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Boost Precision") {
                 Label("Wake boost via Shortcuts", systemImage: "bolt.circle")
                 Label("Workout boost via Shortcuts", systemImage: "bolt.circle")

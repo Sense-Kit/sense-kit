@@ -5,6 +5,14 @@ public struct PolicyEngine: Sendable {
 
     public func decide(event: ContextEvent, snapshot: ContextSnapshot) -> PolicyDecision {
         switch event.eventType {
+        case .motionActivityObserved:
+            return PolicyDecision(
+                eventType: .motionActivityObserved,
+                allowedActions: ["update_context"],
+                blockedActions: ["send_short_text", "send_voice_note", "send_tts", "send_long_markdown"],
+                deliveryChannelPreference: ["short_text"],
+                ttlSec: 300
+            )
         case .wakeConfirmed:
             return PolicyDecision(
                 eventType: .wakeConfirmed,
@@ -48,4 +56,3 @@ public struct PolicyEngine: Sendable {
         }
     }
 }
-

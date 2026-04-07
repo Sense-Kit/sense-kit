@@ -121,6 +121,8 @@ public actor CorroborationEngine {
 
     private func hardBlocked(eventType: ContextEventType, state: RuntimeState) -> Bool {
         switch eventType {
+        case .motionActivityObserved:
+            return false
         case .wakeConfirmed:
             return state.lastWakeAt.map { clock.now().timeIntervalSince($0) < 43_200 } ?? false
         case .drivingStarted:
@@ -146,6 +148,8 @@ public actor CorroborationEngine {
 
     private func derivedSupportScore(for eventType: ContextEventType, state: RuntimeState) -> Double {
         switch eventType {
+        case .motionActivityObserved:
+            return 0
         case .wakeConfirmed:
             return (isWithinWakeWindow(clock.now()) ? 0.15 : 0) + (state.lastWakeAt == nil || clock.now().timeIntervalSince(state.lastWakeAt!) >= 43_200 ? 0.10 : 0)
         case .drivingStarted:
@@ -171,6 +175,8 @@ public actor CorroborationEngine {
 
     private func derivedOpposeScore(for eventType: ContextEventType) -> Double {
         switch eventType {
+        case .motionActivityObserved:
+            return 0
         case .wakeConfirmed:
             return isWithinWakeWindow(clock.now()) ? 0 : 0.30
         default:

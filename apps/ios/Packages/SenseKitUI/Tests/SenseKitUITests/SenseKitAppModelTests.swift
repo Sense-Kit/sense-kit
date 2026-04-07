@@ -18,6 +18,7 @@ struct SenseKitAppModelTests {
                     hmacSecret: "secret-1"
                 )
             ),
+            wakeCollectorStatus: .running,
             timelineEntries: [
                 DebugTimelineEntry(createdAt: Date(), category: .event, message: "Manual test event driving_started")
             ],
@@ -35,12 +36,17 @@ struct SenseKitAppModelTests {
         let service = FakeSenseKitAppService(initialState: state)
         let model = SenseKitAppModel(service: service)
 
+        #expect(model.showsStartupScreen)
+
         await model.load()
 
+        #expect(!model.showsStartupScreen)
         #expect(model.endpointURLText == "https://example.ts.net/hooks/sensekit")
         #expect(model.bearerToken == "token-1")
         #expect(model.hmacSecret == "secret-1")
         #expect(model.drivingLocationBoostEnabled)
+        #expect(model.wakeCollectorStatus == .running)
+        #expect(model.wakeCollectorStatusText == "Running")
         #expect(model.timelineEntries.count == 1)
         #expect(model.auditEntries.count == 1)
         #expect(model.connectionStatus == "Configured for example.ts.net")
@@ -152,6 +158,60 @@ struct SenseKitAppModelTests {
         #expect(model.connectionStatus == "Configure OpenClaw first")
         #expect(model.feedback?.style == .error)
         #expect(model.feedback?.message == "Save the OpenClaw connection before sending a test event.")
+    }
+
+    @Test
+    func refreshStateReloadsTimelineAndAuditEntriesAfterInitialLoad() async throws {
+        let initialState = SenseKitLoadedState(
+            configuration: RuntimeConfiguration(deviceID: "device-1"),
+            timelineEntries: [
+                DebugTimelineEntry(createdAt: Date(), category: .evaluation, message: "Runtime bootstrap completed")
+            ],
+            auditEntries: []
+        )
+        let refreshedState = SenseKitLoadedState(
+            configuration: RuntimeConfiguration(deviceID: "device-1"),
+            timelineEntries: [
+                DebugTimelineEntry(createdAt: Date(), category: .signal, message: "Received raw motion activity walking")
+            ],
+            auditEntries: [
+                AuditLogEntry(
+                    createdAt: Date(),
+                    eventType: "motion_activity_observed",
+                    destination: "https://example.ts.net/hooks/sensekit",
+                    status: .delivered,
+                    payloadSummary: "HTTP 200",
+                    retryCount: 0
+                )
+            ]
+        )
+        let service = FakeSenseKitAppService(initialState: initialState)
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        await service.setNextLoadedState(refreshedState)
+
+        await model.refreshState()
+
+        #expect(model.timelineEntries.count == 1)
+        #expect(model.timelineEntries.first?.message == "Received raw motion activity walking")
+        #expect(model.auditEntries.count == 1)
+        #expect(model.auditEntries.first?.eventType == "motion_activity_observed")
+    }
+
+    @Test
+    func startupStatusTextExplainsCurrentLaunchState() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(configuration: RuntimeConfiguration(deviceID: "device-1"))
+        )
+        let model = SenseKitAppModel(service: service)
+
+        #expect(model.startupTitle == "Starting SenseKit")
+        #expect(model.startupMessage == "Opening the local runtime, loading saved events, and checking motion export.")
+
+        await model.load()
+
+        #expect(model.startupTitle == "SenseKit Ready")
     }
 }
 

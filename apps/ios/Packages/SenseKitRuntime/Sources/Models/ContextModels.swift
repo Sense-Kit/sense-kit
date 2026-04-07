@@ -52,6 +52,7 @@ public enum TimelineCategory: String, Codable, Sendable {
 }
 
 public enum ContextEventType: String, Codable, CaseIterable, Sendable {
+    case motionActivityObserved = "motion_activity_observed"
     case wakeConfirmed = "wake_confirmed"
     case drivingStarted = "driving_started"
     case drivingStopped = "driving_stopped"
@@ -518,4 +519,3 @@ public struct RuntimeState: Codable, Equatable, Sendable {
         lastEventTimestamps[eventType.rawValue] = date
     }
 }
-

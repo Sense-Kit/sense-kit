@@ -8,6 +8,7 @@ public final class SenseKitAppModel {
     public var selectedFeatures: Set<FeatureFlag>
     public var connectionStatus: String
     public var drivingLocationBoostEnabled: Bool
+    public var wakeCollectorStatus: WakeCollectorStatus
     public var timelineEntries: [DebugTimelineEntry]
     public var auditEntries: [AuditLogEntry]
     public var endpointURLText: String
@@ -27,6 +28,7 @@ public final class SenseKitAppModel {
         selectedFeatures: Set<FeatureFlag> = [.wakeBrief, .drivingMode],
         connectionStatus: String = "Not connected",
         drivingLocationBoostEnabled: Bool = false,
+        wakeCollectorStatus: WakeCollectorStatus = .inactive,
         timelineEntries: [DebugTimelineEntry] = [],
         auditEntries: [AuditLogEntry] = [],
         endpointURLText: String = "",
@@ -42,6 +44,7 @@ public final class SenseKitAppModel {
         self.selectedFeatures = selectedFeatures
         self.connectionStatus = connectionStatus
         self.drivingLocationBoostEnabled = drivingLocationBoostEnabled
+        self.wakeCollectorStatus = wakeCollectorStatus
         self.timelineEntries = timelineEntries
         self.auditEntries = auditEntries
         self.endpointURLText = endpointURLText
@@ -72,6 +75,17 @@ public final class SenseKitAppModel {
     public func loadIfNeeded() async {
         guard !hasLoaded else { return }
         await load()
+    }
+
+    public func refreshState() async {
+        guard hasLoaded, !isBusy else { return }
+
+        do {
+            let state = try await service.loadState()
+            apply(state)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     public func saveConnection() async {
@@ -156,6 +170,7 @@ public final class SenseKitAppModel {
                     hmacSecret: "preview-secret"
                 )
             ),
+            wakeCollectorStatus: .running,
             timelineEntries: [
                 DebugTimelineEntry(createdAt: Date(), category: .signal, message: "Received signal motion.automotive_entered"),
                 DebugTimelineEntry(createdAt: Date(), category: .event, message: "Emitted driving_started")
@@ -192,6 +207,7 @@ public final class SenseKitAppModel {
         configuration = state.configuration
         selectedFeatures = state.configuration.enabledFeatures
         drivingLocationBoostEnabled = state.configuration.drivingLocationBoostEnabled
+        wakeCollectorStatus = state.wakeCollectorStatus
         timelineEntries = state.timelineEntries
         auditEntries = state.auditEntries
         endpointURLText = state.configuration.openClaw?.endpointURL.absoluteString ?? ""
@@ -226,6 +242,57 @@ public final class SenseKitAppModel {
         }
 
         return "Configured"
+    }
+
+    public var wakeCollectorStatusText: String {
+        switch wakeCollectorStatus {
+        case .inactive:
+            return "Motion export is off"
+        case .permissionRequired:
+            return "Needs Motion access"
+        case .permissionDenied:
+            return "Motion access denied"
+        case .unavailable:
+            return "Motion unavailable"
+        case .running:
+            return "Running"
+        }
+    }
+
+    public var wakeCollectorHelpText: String {
+        switch wakeCollectorStatus {
+        case .inactive:
+            return "Turn on Wake Brief in Setup, then save your settings to start exporting raw motion activity."
+        case .permissionRequired:
+            return "Allow Motion access when iPhone asks. SenseKit will send raw motion activity changes to OpenClaw."
+        case .permissionDenied:
+            return "Turn Motion & Fitness back on in iPhone Settings if you want raw motion activity export."
+        case .unavailable:
+            return "This device does not expose the motion activity API SenseKit needs for raw motion export."
+        case .running:
+            return "Motion updates are active. SenseKit will export raw motion activity changes to OpenClaw."
+        }
+    }
+
+    public var showsStartupScreen: Bool {
+        !hasLoaded
+    }
+
+    public var startupTitle: String {
+        if let errorMessage, !errorMessage.isEmpty {
+            return "Startup Problem"
+        }
+        return hasLoaded ? "SenseKit Ready" : "Starting SenseKit"
+    }
+
+    public var startupMessage: String {
+        if let errorMessage, !errorMessage.isEmpty {
+            return errorMessage
+        }
+        if hasLoaded {
+            return "The local runtime is ready."
+        }
+        return "Opening the local runtime, loading saved events, and checking motion export."
     }
 }
 

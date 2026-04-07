@@ -34,6 +34,10 @@ public actor BackgroundWakeCoordinator {
 
     @discardableResult
     public func handleWake(signal: ContextSignal) async throws -> [ProcessingResult] {
+        if let observation = MotionActivityObservation(signal: signal) {
+            return [try await processMotionObservation(observation, signal: signal)]
+        }
+
         let evaluations = try await engine.ingest(signal)
         guard !evaluations.isEmpty else { return [] }
 
@@ -137,6 +141,37 @@ public actor BackgroundWakeCoordinator {
                 )
             )
         }
+    }
+
+    private func processMotionObservation(
+        _ observation: MotionActivityObservation,
+        signal: ContextSignal
+    ) async throws -> ProcessingResult {
+        try await store.appendDebugEntry(
+            DebugTimelineEntry(
+                createdAt: clock.now(),
+                category: .signal,
+                message: "Received raw motion activity \(observation.primaryKind)",
+                payload: try payloadString(signal)
+            )
+        )
+
+        let configuration = try await settingsStore.load()
+        let event = ContextEvent(
+            eventType: .motionActivityObserved,
+            occurredAt: signal.observedAt,
+            confidence: observation.confidenceScore,
+            reasons: observation.reasons,
+            modeHint: .normal,
+            cooldownSec: 0,
+            dedupeKey: "\(configuration.deviceID):motion_activity_observed:\(signal.signalID)"
+        )
+
+        return try await process(
+            event: event,
+            configuration: configuration,
+            payloadSummary: "motion_activity_observed primary=\(observation.primaryKind) confidence=\(observation.confidence)"
+        )
     }
 
     private func process(

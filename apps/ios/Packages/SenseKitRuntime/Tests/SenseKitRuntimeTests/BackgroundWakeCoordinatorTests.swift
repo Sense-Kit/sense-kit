@@ -68,6 +68,82 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
         XCTAssertTrue(state.isDriving)
     }
 
+    func testHandleWakeForRawMotionSignalDeliversDirectMotionEvent() async throws {
+        let clock = FixedClock(currentDate: date(hour: 12, minute: 18))
+        let store = TestRuntimeStore()
+        let settingsStore = InMemorySettingsStore(
+            configuration: RuntimeConfiguration(
+                deviceID: "test-device",
+                openClaw: OpenClawConfiguration(
+                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
+                    bearerToken: "bearer-token",
+                    hmacSecret: "hmac-secret"
+                )
+            )
+        )
+
+        await MockURLProtocol.setRequestHandler { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/hooks/sensekit")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer bearer-token")
+            XCTAssertEqual(request.httpMethod, "POST")
+
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(#"{"ok":true}"#.utf8))
+        }
+
+        let sessionConfiguration = URLSessionConfiguration.ephemeral
+        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: sessionConfiguration)
+
+        let coordinator = BackgroundWakeCoordinator(
+            store: store,
+            engine: CorroborationEngine(
+                store: store,
+                configuration: RuntimeConfiguration(deviceID: "test-device"),
+                clock: clock
+            ),
+            snapshotEnricher: SnapshotEnricher(),
+            policyEngine: PolicyEngine(),
+            deliveryClient: DeliveryClient(session: session),
+            settingsStore: settingsStore,
+            clock: clock
+        )
+
+        let results = try await coordinator.handleWake(
+            signal: ContextSignal(
+                signalKey: MotionActivityObservation.signalKey,
+                source: "coremotion_activity",
+                weight: 1.0,
+                polarity: .support,
+                observedAt: clock.now(),
+                validForSec: 1,
+                payload: [
+                    "primary_kind": .string("walking"),
+                    "confidence": .string("high"),
+                    "flags": .array([.string("walking")])
+                ]
+            )
+        )
+
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0].event.eventType, .motionActivityObserved)
+        XCTAssertEqual(results[0].event.confidence, 1.0)
+        XCTAssertEqual(results[0].event.reasons, ["motion.primary.walking", "motion.confidence.high", "motion.flag.walking"])
+
+        let timelineEntries = try await store.timelineEntries(limit: 10)
+        XCTAssertTrue(timelineEntries.contains { $0.message.contains("Received raw motion activity walking") })
+        XCTAssertFalse(timelineEntries.contains { $0.message.contains("Emitted motion_activity_observed") })
+
+        let state = try await store.loadRuntimeState()
+        XCTAssertNil(state.lastWakeAt)
+        XCTAssertFalse(state.isDriving)
+    }
+
     private func date(hour: Int, minute: Int) -> Date {
         Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 7, hour: hour, minute: minute))!
     }

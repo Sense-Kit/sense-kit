@@ -5,6 +5,8 @@ enum RuntimeStateReducer {
         state.setLastEventDate(date, for: eventType)
 
         switch eventType {
+        case .motionActivityObserved:
+            break
         case .wakeConfirmed:
             state.lastWakeAt = date
         case .drivingStarted:
