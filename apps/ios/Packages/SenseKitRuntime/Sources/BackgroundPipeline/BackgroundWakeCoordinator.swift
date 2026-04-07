@@ -34,6 +34,10 @@ public actor BackgroundWakeCoordinator {
 
     @discardableResult
     public func handleWake(signal: ContextSignal) async throws -> [ProcessingResult] {
+        if let change = HealthSnapshotChange(signal: signal) {
+            return [try await processHealthSnapshotChange(change, signal: signal)]
+        }
+
         if let observation = MotionActivityObservation(signal: signal) {
             return [try await processMotionObservation(observation, signal: signal)]
         }
@@ -174,6 +178,37 @@ public actor BackgroundWakeCoordinator {
         )
     }
 
+    private func processHealthSnapshotChange(
+        _ change: HealthSnapshotChange,
+        signal: ContextSignal
+    ) async throws -> ProcessingResult {
+        try await store.appendDebugEntry(
+            DebugTimelineEntry(
+                createdAt: clock.now(),
+                category: .signal,
+                message: "Received health snapshot change",
+                payload: try payloadString(signal)
+            )
+        )
+
+        let configuration = try await settingsStore.load()
+        let event = ContextEvent(
+            eventType: .healthSnapshotUpdated,
+            occurredAt: signal.observedAt,
+            confidence: signal.weight,
+            reasons: change.reasons,
+            modeHint: .normal,
+            cooldownSec: 300,
+            dedupeKey: "\(configuration.deviceID):health_snapshot_updated:\(signal.signalID)"
+        )
+
+        return try await process(
+            event: event,
+            configuration: configuration,
+            payloadSummary: "health_snapshot_updated domains=\(change.domains.joined(separator: ","))"
+        )
+    }
+
     private func process(
         event: ContextEvent,
         configuration: RuntimeConfiguration,
@@ -218,5 +253,30 @@ public actor BackgroundWakeCoordinator {
         let offsets: [TimeInterval] = [0, 5, 30, 300, 1_800, 7_200, 43_200]
         let index = min(attempt, offsets.count - 1)
         return date.addingTimeInterval(offsets[index])
+    }
+}
+
+private struct HealthSnapshotChange {
+    static let signalKey = "health.snapshot_changed"
+
+    let domains: [String]
+
+    init?(signal: ContextSignal) {
+        guard signal.signalKey == Self.signalKey else { return nil }
+        if case .array(let values)? = signal.payload["domains"] {
+            self.domains = values.compactMap {
+                guard case .string(let domain) = $0 else { return nil }
+                return domain
+            }
+        } else {
+            self.domains = []
+        }
+    }
+
+    var reasons: [String] {
+        guard !domains.isEmpty else {
+            return ["health.snapshot_changed"]
+        }
+        return domains.map { "health_domain.\($0)" }
     }
 }

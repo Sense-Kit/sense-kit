@@ -4,6 +4,10 @@ public protocol SnapshotProvider: Sendable {
     func currentSnapshot(at date: Date, state: RuntimeState) async -> ContextSnapshot
 }
 
+public protocol HealthSnapshotProviding: Sendable {
+    func currentHealthSnapshot(at date: Date, state: RuntimeState) async -> HealthSnapshot
+}
+
 public struct DefaultSnapshotProvider: SnapshotProvider {
     public init() {}
 
@@ -22,15 +26,29 @@ public struct DefaultSnapshotProvider: SnapshotProvider {
     }
 }
 
-public actor SnapshotEnricher {
-    private let provider: SnapshotProvider
+public struct DefaultHealthSnapshotProvider: HealthSnapshotProviding {
+    public init() {}
 
-    public init(provider: SnapshotProvider = DefaultSnapshotProvider()) {
-        self.provider = provider
-    }
-
-    public func buildSnapshot(at date: Date, state: RuntimeState) async -> ContextSnapshot {
-        await provider.currentSnapshot(at: date, state: state)
+    public func currentHealthSnapshot(at date: Date, state: RuntimeState) async -> HealthSnapshot {
+        .empty(capturedAt: date)
     }
 }
 
+public actor SnapshotEnricher {
+    private let provider: SnapshotProvider
+    private let healthProvider: HealthSnapshotProviding
+
+    public init(
+        provider: SnapshotProvider = DefaultSnapshotProvider(),
+        healthProvider: HealthSnapshotProviding = DefaultHealthSnapshotProvider()
+    ) {
+        self.provider = provider
+        self.healthProvider = healthProvider
+    }
+
+    public func buildSnapshot(at date: Date, state: RuntimeState) async -> ContextSnapshot {
+        let snapshot = await provider.currentSnapshot(at: date, state: state)
+        let health = await healthProvider.currentHealthSnapshot(at: date, state: state)
+        return snapshot.withHealth(health)
+    }
+}

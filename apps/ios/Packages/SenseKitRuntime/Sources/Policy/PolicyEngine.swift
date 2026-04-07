@@ -13,6 +13,14 @@ public struct PolicyEngine: Sendable {
                 deliveryChannelPreference: ["short_text"],
                 ttlSec: 300
             )
+        case .healthSnapshotUpdated:
+            return PolicyDecision(
+                eventType: .healthSnapshotUpdated,
+                allowedActions: ["update_context"],
+                blockedActions: ["send_short_text", "send_voice_note", "send_tts", "send_long_markdown"],
+                deliveryChannelPreference: ["short_text"],
+                ttlSec: 300
+            )
         case .wakeConfirmed:
             return PolicyDecision(
                 eventType: .wakeConfirmed,

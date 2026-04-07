@@ -34,6 +34,7 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
         let sessionConfiguration = URLSessionConfiguration.ephemeral
         sessionConfiguration.protocolClasses = [MockURLProtocol.self]
         let session = URLSession(configuration: sessionConfiguration)
+        let healthSnapshot = makeHealthSnapshot(capturedAt: clock.now())
 
         let coordinator = BackgroundWakeCoordinator(
             store: store,
@@ -42,7 +43,10 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
                 configuration: RuntimeConfiguration(deviceID: "test-device"),
                 clock: clock
             ),
-            snapshotEnricher: SnapshotEnricher(),
+            snapshotEnricher: SnapshotEnricher(
+                provider: DefaultSnapshotProvider(),
+                healthProvider: StubHealthSnapshotProvider(health: healthSnapshot)
+            ),
             policyEngine: PolicyEngine(),
             deliveryClient: DeliveryClient(session: session),
             settingsStore: settingsStore,
@@ -66,6 +70,13 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
 
         let state = try await store.loadRuntimeState()
         XCTAssertTrue(state.isDriving)
+
+        let request = await MockURLProtocol.lastRequest()
+        let deliveredRequest = try XCTUnwrap(request)
+        let deliveredBody = try XCTUnwrap(requestBody(from: deliveredRequest))
+        let deliveredEnvelope = try JSONCoding.decoder.decode(SenseKitEventEnvelope.self, from: deliveredBody)
+        XCTAssertEqual(deliveredEnvelope.snapshot.health, healthSnapshot)
+        XCTAssertEqual(deliveredEnvelope.snapshot.health.nutrition.proteinRemainingG, 42)
     }
 
     func testHandleWakeForRawMotionSignalDeliversDirectMotionEvent() async throws {
@@ -144,21 +155,205 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
         XCTAssertFalse(state.isDriving)
     }
 
+    func testHandleWakeForHealthSnapshotChangedSignalDeliversNeutralHealthEvent() async throws {
+        let clock = FixedClock(currentDate: date(hour: 12, minute: 25))
+        let store = TestRuntimeStore()
+        let settingsStore = InMemorySettingsStore(
+            configuration: RuntimeConfiguration(
+                deviceID: "test-device",
+                openClaw: OpenClawConfiguration(
+                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
+                    bearerToken: "bearer-token",
+                    hmacSecret: "hmac-secret"
+                )
+            )
+        )
+
+        await MockURLProtocol.setRequestHandler { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(#"{"ok":true}"#.utf8))
+        }
+
+        let sessionConfiguration = URLSessionConfiguration.ephemeral
+        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: sessionConfiguration)
+        let healthSnapshot = makeHealthSnapshot(capturedAt: clock.now())
+
+        let coordinator = BackgroundWakeCoordinator(
+            store: store,
+            engine: CorroborationEngine(
+                store: store,
+                configuration: RuntimeConfiguration(deviceID: "test-device"),
+                clock: clock
+            ),
+            snapshotEnricher: SnapshotEnricher(
+                provider: DefaultSnapshotProvider(),
+                healthProvider: StubHealthSnapshotProvider(health: healthSnapshot)
+            ),
+            policyEngine: PolicyEngine(),
+            deliveryClient: DeliveryClient(session: session),
+            settingsStore: settingsStore,
+            clock: clock
+        )
+
+        let results = try await coordinator.handleWake(
+            signal: ContextSignal(
+                signalKey: "health.snapshot_changed",
+                source: "healthkit_observer",
+                weight: 1.0,
+                polarity: .support,
+                observedAt: clock.now(),
+                validForSec: 60,
+                payload: [
+                    "domains": .array([.string("sleep"), .string("nutrition")])
+                ]
+            )
+        )
+
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0].event.eventType, .healthSnapshotUpdated)
+        XCTAssertEqual(results[0].event.reasons, ["health_domain.sleep", "health_domain.nutrition"])
+
+        let request = await MockURLProtocol.lastRequest()
+        let deliveredRequest = try XCTUnwrap(request)
+        let deliveredBody = try XCTUnwrap(requestBody(from: deliveredRequest))
+        let deliveredEnvelope = try JSONCoding.decoder.decode(SenseKitEventEnvelope.self, from: deliveredBody)
+        XCTAssertEqual(deliveredEnvelope.event.eventType, .healthSnapshotUpdated)
+        XCTAssertEqual(deliveredEnvelope.snapshot.health, healthSnapshot)
+        XCTAssertEqual(deliveredEnvelope.policy.allowedActions, ["update_context"])
+    }
+
     private func date(hour: Int, minute: Int) -> Date {
         Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 7, hour: hour, minute: minute))!
+    }
+
+    private func makeHealthSnapshot(capturedAt: Date) -> HealthSnapshot {
+        HealthSnapshot(
+            capturedAt: capturedAt,
+            sleep: .init(
+                available: true,
+                authorized: true,
+                freshness: .recent,
+                lastSleepStartAt: date(hour: 22, minute: 40),
+                lastSleepEndAt: date(hour: 6, minute: 30),
+                asleepMinutes: 470,
+                inBedMinutes: 495,
+                sevenDayAvgAsleepMinutes: 455,
+                deltaVsSevenDayAvgMinutes: 15
+            ),
+            workout: .init(
+                available: true,
+                authorized: true,
+                freshness: .recent,
+                active: false,
+                todayCount: 1,
+                todayTotalMinutes: 48,
+                todayActiveEnergyKcal: 320,
+                lastType: "traditional_strength_training",
+                lastStartAt: date(hour: 9, minute: 15),
+                lastEndAt: date(hour: 10, minute: 3)
+            ),
+            nutrition: .init(
+                available: true,
+                authorized: true,
+                freshness: .recent,
+                lastLoggedAt: date(hour: 12, minute: 10),
+                proteinG: 118,
+                proteinTargetG: 160,
+                proteinRemainingG: 42,
+                caloriesKcal: 2_110,
+                caloriesTargetKcal: 2_700,
+                caloriesRemainingKcal: 590,
+                waterML: 1_650,
+                waterTargetML: 3_000,
+                waterRemainingML: 1_350
+            ),
+            activity: .init(
+                available: true,
+                authorized: true,
+                freshness: .recent,
+                steps: 7_420,
+                activeEnergyKcal: 612,
+                distanceKM: 5.8,
+                sevenDayAvgStepsByNow: 9_100,
+                deltaVsSevenDayAvgStepsByNow: -1_680
+            ),
+            recovery: .init(
+                available: true,
+                authorized: true,
+                freshness: .recent,
+                restingHeartRateBPM: 54,
+                restingHeartRateDeltaVs14DayAvgBPM: 4,
+                hrvSDNNMs: 39,
+                hrvDeltaVs14DayAvgMs: -11,
+                measuredAt: date(hour: 5, minute: 40)
+            ),
+            mind: .init(
+                available: true,
+                authorized: false,
+                freshness: .stale,
+                latestState: nil,
+                loggedAt: nil
+            )
+        )
+    }
+
+    private func requestBody(from request: URLRequest) -> Data? {
+        if let body = request.httpBody {
+            return body
+        }
+
+        guard let stream = request.httpBodyStream else {
+            return nil
+        }
+
+        stream.open()
+        defer { stream.close() }
+
+        let bufferSize = 1_024
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+        defer { buffer.deallocate() }
+
+        var data = Data()
+        while stream.hasBytesAvailable {
+            let read = stream.read(buffer, maxLength: bufferSize)
+            if read < 0 {
+                return nil
+            }
+            if read == 0 {
+                break
+            }
+            data.append(buffer, count: read)
+        }
+        return data
     }
 }
 
 private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     private actor RequestHandlerStore {
         private var requestHandler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
+        private var lastRequest: URLRequest?
 
         func set(_ handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?) {
             requestHandler = handler
+            lastRequest = nil
         }
 
         func load() -> (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))? {
             requestHandler
+        }
+
+        func saveLastRequest(_ request: URLRequest) {
+            lastRequest = request
+        }
+
+        func loadLastRequest() -> URLRequest? {
+            lastRequest
         }
     }
 
@@ -166,6 +361,10 @@ private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
     static func setRequestHandler(_ handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?) async {
         await requestHandlerStore.set(handler)
+    }
+
+    static func lastRequest() async -> URLRequest? {
+        await requestHandlerStore.loadLastRequest()
     }
 
     override class func canInit(with request: URLRequest) -> Bool {
@@ -178,6 +377,7 @@ private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
     override func startLoading() {
         Task {
+            await Self.requestHandlerStore.saveLastRequest(request)
             guard let handler = await Self.requestHandlerStore.load() else {
                 client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
                 return
@@ -252,5 +452,13 @@ private actor TestRuntimeStore: RuntimeStore {
 
     func auditEntries(limit: Int) async throws -> [AuditLogEntry] {
         Array(auditLog.prefix(limit))
+    }
+}
+
+private struct StubHealthSnapshotProvider: HealthSnapshotProviding {
+    let health: HealthSnapshot
+
+    func currentHealthSnapshot(at date: Date, state: RuntimeState) async -> HealthSnapshot {
+        health
     }
 }

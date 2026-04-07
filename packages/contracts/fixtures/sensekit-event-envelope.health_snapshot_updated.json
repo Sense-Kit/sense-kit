@@ -1,0 +1,117 @@
+{
+  "schema_version": "sensekit.event.v1",
+  "device_id": "device-1",
+  "event": {
+    "schema_version": "sensekit.context_event.v1",
+    "event_id": "evt-health-1",
+    "event_type": "health_snapshot_updated",
+    "occurred_at": "2026-04-07T12:15:00Z",
+    "confidence": 1,
+    "reasons": ["health_domain.sleep", "health_domain.nutrition"],
+    "mode_hint": "normal",
+    "cooldown_sec": 300,
+    "dedupe_key": "device-1:health_snapshot_updated:signal-1"
+  },
+  "snapshot": {
+    "schema_version": "sensekit.context_snapshot.v1",
+    "captured_at": "2026-04-07T12:15:00Z",
+    "routine": {
+      "awake": true,
+      "focus": null,
+      "workout": "inactive"
+    },
+    "place": {
+      "type": "home",
+      "freshness": "recent"
+    },
+    "calendar": {
+      "in_meeting": false,
+      "next_meeting_in_min": 28,
+      "freshness": "recent"
+    },
+    "device": {
+      "battery_percent_bucket": 76,
+      "charging": false
+    },
+    "health": {
+      "captured_at": "2026-04-07T12:15:00Z",
+      "sleep": {
+        "available": true,
+        "authorized": true,
+        "freshness": "recent",
+        "last_sleep_start_at": "2026-04-06T22:40:00Z",
+        "last_sleep_end_at": "2026-04-07T06:30:00Z",
+        "asleep_minutes": 470,
+        "in_bed_minutes": 495,
+        "seven_day_avg_asleep_minutes": 455,
+        "delta_vs_seven_day_avg_minutes": 15
+      },
+      "workout": {
+        "available": true,
+        "authorized": true,
+        "freshness": "recent",
+        "active": false,
+        "today_count": 1,
+        "today_total_minutes": 48,
+        "today_active_energy_kcal": 320,
+        "last_type": "traditional_strength_training",
+        "last_start_at": "2026-04-07T09:15:00Z",
+        "last_end_at": "2026-04-07T10:03:00Z"
+      },
+      "nutrition": {
+        "available": true,
+        "authorized": true,
+        "freshness": "recent",
+        "last_logged_at": "2026-04-07T12:10:00Z",
+        "protein_g": 118,
+        "protein_target_g": 160,
+        "protein_remaining_g": 42,
+        "calories_kcal": 2110,
+        "calories_target_kcal": 2700,
+        "calories_remaining_kcal": 590,
+        "water_ml": 1650,
+        "water_target_ml": 3000,
+        "water_remaining_ml": 1350
+      },
+      "activity": {
+        "available": true,
+        "authorized": true,
+        "freshness": "recent",
+        "steps": 7420,
+        "active_energy_kcal": 612,
+        "distance_km": 5.8,
+        "seven_day_avg_steps_by_now": 9100,
+        "delta_vs_seven_day_avg_steps_by_now": -1680
+      },
+      "recovery": {
+        "available": true,
+        "authorized": true,
+        "freshness": "recent",
+        "resting_heart_rate_bpm": 54,
+        "resting_heart_rate_delta_vs_14_day_avg_bpm": 4,
+        "hrv_sdnn_ms": 39,
+        "hrv_delta_vs_14_day_avg_ms": -11,
+        "measured_at": "2026-04-07T05:40:00Z"
+      },
+      "mind": {
+        "available": true,
+        "authorized": false,
+        "freshness": "stale",
+        "latest_state": null,
+        "logged_at": null
+      }
+    }
+  },
+  "policy": {
+    "schema_version": "sensekit.policy_decision.v1",
+    "event_type": "health_snapshot_updated",
+    "allowed_actions": ["update_context"],
+    "blocked_actions": ["send_short_text", "send_voice_note", "send_tts", "send_long_markdown"],
+    "delivery_channel_preference": ["short_text"],
+    "ttl_sec": 300
+  },
+  "delivery": {
+    "attempt": 1,
+    "queued_at": "2026-04-07T12:15:00Z"
+  }
+}

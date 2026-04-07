@@ -7,6 +7,8 @@ enum RuntimeStateReducer {
         switch eventType {
         case .motionActivityObserved:
             break
+        case .healthSnapshotUpdated:
+            break
         case .wakeConfirmed:
             state.lastWakeAt = date
         case .drivingStarted:

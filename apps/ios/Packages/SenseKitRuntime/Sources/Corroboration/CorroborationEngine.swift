@@ -123,6 +123,8 @@ public actor CorroborationEngine {
         switch eventType {
         case .motionActivityObserved:
             return false
+        case .healthSnapshotUpdated:
+            return false
         case .wakeConfirmed:
             return state.lastWakeAt.map { clock.now().timeIntervalSince($0) < 43_200 } ?? false
         case .drivingStarted:
@@ -150,6 +152,8 @@ public actor CorroborationEngine {
         switch eventType {
         case .motionActivityObserved:
             return 0
+        case .healthSnapshotUpdated:
+            return 0
         case .wakeConfirmed:
             return (isWithinWakeWindow(clock.now()) ? 0.15 : 0) + (state.lastWakeAt == nil || clock.now().timeIntervalSince(state.lastWakeAt!) >= 43_200 ? 0.10 : 0)
         case .drivingStarted:
@@ -176,6 +180,8 @@ public actor CorroborationEngine {
     private func derivedOpposeScore(for eventType: ContextEventType) -> Double {
         switch eventType {
         case .motionActivityObserved:
+            return 0
+        case .healthSnapshotUpdated:
             return 0
         case .wakeConfirmed:
             return isWithinWakeWindow(clock.now()) ? 0 : 0.30
