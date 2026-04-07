@@ -35,6 +35,74 @@
     "device": {
       "battery_percent_bucket": 80,
       "charging": false
+    },
+    "health": {
+      "captured_at": "2026-03-09T07:44:11Z",
+      "sleep": {
+        "available": false,
+        "authorized": false,
+        "freshness": "stale",
+        "last_sleep_start_at": null,
+        "last_sleep_end_at": null,
+        "asleep_minutes": null,
+        "in_bed_minutes": null,
+        "seven_day_avg_asleep_minutes": null,
+        "delta_vs_seven_day_avg_minutes": null
+      },
+      "workout": {
+        "available": false,
+        "authorized": false,
+        "freshness": "stale",
+        "active": false,
+        "today_count": null,
+        "today_total_minutes": null,
+        "today_active_energy_kcal": null,
+        "last_type": null,
+        "last_start_at": null,
+        "last_end_at": null
+      },
+      "nutrition": {
+        "available": false,
+        "authorized": false,
+        "freshness": "stale",
+        "last_logged_at": null,
+        "protein_g": null,
+        "protein_target_g": null,
+        "protein_remaining_g": null,
+        "calories_kcal": null,
+        "calories_target_kcal": null,
+        "calories_remaining_kcal": null,
+        "water_ml": null,
+        "water_target_ml": null,
+        "water_remaining_ml": null
+      },
+      "activity": {
+        "available": false,
+        "authorized": false,
+        "freshness": "stale",
+        "steps": null,
+        "active_energy_kcal": null,
+        "distance_km": null,
+        "seven_day_avg_steps_by_now": null,
+        "delta_vs_seven_day_avg_steps_by_now": null
+      },
+      "recovery": {
+        "available": false,
+        "authorized": false,
+        "freshness": "stale",
+        "resting_heart_rate_bpm": null,
+        "resting_heart_rate_delta_vs_14_day_avg_bpm": null,
+        "hrv_sdnn_ms": null,
+        "hrv_delta_vs_14_day_avg_ms": null,
+        "measured_at": null
+      },
+      "mind": {
+        "available": false,
+        "authorized": false,
+        "freshness": "stale",
+        "latest_state": null,
+        "logged_at": null
+      }
     }
   },
   "policy": {
@@ -60,4 +128,3 @@
     "queued_at": "2026-03-09T07:44:12Z"
   }
 }
-

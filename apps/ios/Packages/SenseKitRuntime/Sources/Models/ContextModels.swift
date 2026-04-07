@@ -53,6 +53,7 @@ public enum TimelineCategory: String, Codable, Sendable {
 
 public enum ContextEventType: String, Codable, CaseIterable, Sendable {
     case motionActivityObserved = "motion_activity_observed"
+    case healthSnapshotUpdated = "health_snapshot_updated"
     case wakeConfirmed = "wake_confirmed"
     case drivingStarted = "driving_started"
     case drivingStopped = "driving_stopped"
@@ -256,13 +257,15 @@ public struct ContextSnapshot: Codable, Equatable, Sendable {
     public let place: Place
     public let calendar: Calendar
     public let device: Device
+    public let health: HealthSnapshot
 
     public init(
         capturedAt: Date,
         routine: Routine,
         place: Place,
         calendar: Calendar,
-        device: Device
+        device: Device,
+        health: HealthSnapshot? = nil
     ) {
         self.schemaVersion = "sensekit.context_snapshot.v1"
         self.capturedAt = capturedAt
@@ -270,6 +273,7 @@ public struct ContextSnapshot: Codable, Equatable, Sendable {
         self.place = place
         self.calendar = calendar
         self.device = device
+        self.health = health ?? .empty(capturedAt: capturedAt)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -279,6 +283,18 @@ public struct ContextSnapshot: Codable, Equatable, Sendable {
         case place
         case calendar
         case device
+        case health
+    }
+
+    public func withHealth(_ health: HealthSnapshot) -> ContextSnapshot {
+        ContextSnapshot(
+            capturedAt: capturedAt,
+            routine: routine,
+            place: place,
+            calendar: calendar,
+            device: device,
+            health: health
+        )
     }
 }
 

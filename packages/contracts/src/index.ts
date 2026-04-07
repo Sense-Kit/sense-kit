@@ -45,6 +45,86 @@ export interface ContextSnapshot {
     battery_percent_bucket: number;
     charging: boolean;
   };
+  health: {
+    captured_at: string;
+    sleep: HealthSleepSnapshot;
+    workout: HealthWorkoutSnapshot;
+    nutrition: HealthNutritionSnapshot;
+    activity: HealthActivitySnapshot;
+    recovery: HealthRecoverySnapshot;
+    mind: HealthMindSnapshot;
+  };
+}
+
+export interface HealthSleepSnapshot {
+  available: boolean;
+  authorized: boolean;
+  freshness: "live" | "recent" | "stale";
+  last_sleep_start_at: string | null;
+  last_sleep_end_at: string | null;
+  asleep_minutes: number | null;
+  in_bed_minutes: number | null;
+  seven_day_avg_asleep_minutes: number | null;
+  delta_vs_seven_day_avg_minutes: number | null;
+}
+
+export interface HealthWorkoutSnapshot {
+  available: boolean;
+  authorized: boolean;
+  freshness: "live" | "recent" | "stale";
+  active: boolean;
+  today_count: number | null;
+  today_total_minutes: number | null;
+  today_active_energy_kcal: number | null;
+  last_type: string | null;
+  last_start_at: string | null;
+  last_end_at: string | null;
+}
+
+export interface HealthNutritionSnapshot {
+  available: boolean;
+  authorized: boolean;
+  freshness: "live" | "recent" | "stale";
+  last_logged_at: string | null;
+  protein_g: number | null;
+  protein_target_g: number | null;
+  protein_remaining_g: number | null;
+  calories_kcal: number | null;
+  calories_target_kcal: number | null;
+  calories_remaining_kcal: number | null;
+  water_ml: number | null;
+  water_target_ml: number | null;
+  water_remaining_ml: number | null;
+}
+
+export interface HealthActivitySnapshot {
+  available: boolean;
+  authorized: boolean;
+  freshness: "live" | "recent" | "stale";
+  steps: number | null;
+  active_energy_kcal: number | null;
+  distance_km: number | null;
+  seven_day_avg_steps_by_now: number | null;
+  delta_vs_seven_day_avg_steps_by_now: number | null;
+}
+
+export interface HealthRecoverySnapshot {
+  available: boolean;
+  authorized: boolean;
+  freshness: "live" | "recent" | "stale";
+  resting_heart_rate_bpm: number | null;
+  resting_heart_rate_delta_vs_14_day_avg_bpm: number | null;
+  hrv_sdnn_ms: number | null;
+  hrv_delta_vs_14_day_avg_ms: number | null;
+  measured_at: string | null;
+}
+
+export interface HealthMindSnapshot {
+  available: boolean;
+  authorized: boolean;
+  freshness: "live" | "recent" | "stale";
+  latest_state: string | null;
+  logged_at: string | null;
 }
 
 export interface PolicyDecision {
@@ -67,4 +147,3 @@ export interface SenseKitEventEnvelope {
     queued_at: string;
   };
 }
-
