@@ -19,6 +19,7 @@ struct SenseKitAppModelTests {
                 )
             ),
             wakeCollectorStatus: .running,
+            locationCollectorStatus: .running,
             timelineEntries: [
                 DebugTimelineEntry(createdAt: Date(), category: .event, message: "Manual test event driving_started")
             ],
@@ -47,9 +48,12 @@ struct SenseKitAppModelTests {
         #expect(model.drivingLocationBoostEnabled)
         #expect(model.wakeCollectorStatus == .running)
         #expect(model.wakeCollectorStatusText == "Running")
+        #expect(model.locationCollectorStatus == .running)
+        #expect(model.locationCollectorStatusText == "Running")
         #expect(model.timelineEntries.count == 1)
         #expect(model.auditEntries.count == 1)
         #expect(model.connectionStatus == "Configured for example.ts.net")
+        #expect(model.lastStatusRefreshAt != nil)
     }
 
     @Test
@@ -74,6 +78,56 @@ struct SenseKitAppModelTests {
         #expect(savedConfiguration?.enabledFeatures == [.wakeBrief, .drivingMode])
         #expect(model.feedback?.style == .success)
         #expect(model.feedback?.message == "Configuration saved. OpenClaw is ready.")
+    }
+
+    @Test
+    func toggleFeaturePersistsConfigurationImmediately() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(deviceID: "device-1", enabledFeatures: [.wakeBrief])
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+        await model.load()
+
+        await model.toggleFeature(.homeWork)
+
+        let savedConfiguration = await service.savedConfigurations.last
+        #expect(model.selectedFeatures.contains(.homeWork))
+        #expect(savedConfiguration?.enabledFeatures.contains(.homeWork) == true)
+        #expect(model.feedback?.message == "Feature selection saved.")
+    }
+
+    @Test
+    func setDrivingLocationBoostEnabledPersistsConfigurationImmediately() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(deviceID: "device-1", enabledFeatures: [.drivingMode])
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+        await model.load()
+
+        await model.setDrivingLocationBoostEnabled(true)
+
+        let savedConfiguration = await service.savedConfigurations.last
+        #expect(model.drivingLocationBoostEnabled)
+        #expect(savedConfiguration?.drivingLocationBoostEnabled == true)
+        #expect(model.feedback?.message == "Driving location boost saved.")
+    }
+
+    @Test
+    func saveConnectionWithoutOpenClawShowsLocalOnlyMessage() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(configuration: RuntimeConfiguration(deviceID: "device-1"))
+        )
+        let model = SenseKitAppModel(service: service)
+        model.selectedFeatures = [.homeWork]
+
+        await model.saveConnection()
+
+        #expect(model.feedback?.style == .success)
+        #expect(model.feedback?.message == "Configuration saved. OpenClaw delivery is off.")
     }
 
     @Test
@@ -200,6 +254,165 @@ struct SenseKitAppModelTests {
     }
 
     @Test
+    func refreshStateDoesNotOverwriteUnsavedFeatureSelections() async throws {
+        let initialState = SenseKitLoadedState(
+            configuration: RuntimeConfiguration(
+                deviceID: "device-1",
+                enabledFeatures: [.wakeBrief]
+            )
+        )
+        let refreshedState = SenseKitLoadedState(
+            configuration: RuntimeConfiguration(
+                deviceID: "device-1",
+                enabledFeatures: [.wakeBrief]
+            ),
+            timelineEntries: [
+                DebugTimelineEntry(createdAt: Date(), category: .evaluation, message: "Background refresh")
+            ]
+        )
+        let service = FakeSenseKitAppService(initialState: initialState)
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        model.selectedFeatures.insert(.homeWork)
+        await service.setNextLoadedState(refreshedState)
+
+        await model.refreshState()
+
+        #expect(model.selectedFeatures.contains(.wakeBrief))
+        #expect(model.selectedFeatures.contains(.homeWork))
+        #expect(model.timelineEntries.count == 1)
+        #expect(model.timelineEntries.first?.message == "Background refresh")
+    }
+
+    @Test
+    func refreshStateDoesNotOverwriteUnsavedConnectionDrafts() async throws {
+        let initialState = SenseKitLoadedState(
+            configuration: RuntimeConfiguration(
+                deviceID: "device-1",
+                enabledFeatures: [.wakeBrief, .drivingMode],
+                openClaw: OpenClawConfiguration(
+                    endpointURL: URL(string: "https://saved.ts.net/hooks/sensekit")!,
+                    bearerToken: "saved-token",
+                    hmacSecret: "saved-secret"
+                )
+            )
+        )
+        let refreshedState = SenseKitLoadedState(
+            configuration: RuntimeConfiguration(
+                deviceID: "device-1",
+                enabledFeatures: [.wakeBrief, .drivingMode],
+                openClaw: OpenClawConfiguration(
+                    endpointURL: URL(string: "https://saved.ts.net/hooks/sensekit")!,
+                    bearerToken: "saved-token",
+                    hmacSecret: "saved-secret"
+                )
+            ),
+            timelineEntries: [
+                DebugTimelineEntry(createdAt: Date(), category: .evaluation, message: "Background refresh")
+            ]
+        )
+        let service = FakeSenseKitAppService(initialState: initialState)
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        model.endpointURLText = "https://draft.ts.net/hooks/sensekit"
+        model.bearerToken = "draft-token"
+        model.hmacSecret = "draft-secret"
+        await service.setNextLoadedState(refreshedState)
+
+        await model.refreshState()
+
+        #expect(model.endpointURLText == "https://draft.ts.net/hooks/sensekit")
+        #expect(model.bearerToken == "draft-token")
+        #expect(model.hmacSecret == "draft-secret")
+        #expect(model.timelineEntries.count == 1)
+        #expect(model.timelineEntries.first?.message == "Background refresh")
+    }
+
+    @Test
+    func setHomeRegionFromCurrentLocationUpdatesDraftConfiguration() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(deviceID: "device-1", enabledFeatures: [.homeWork])
+            ),
+            nextCurrentRegion: RegionConfiguration(
+                identifier: "home",
+                latitude: 47.3769,
+                longitude: 8.5417,
+                radiusMeters: 175
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        model.homeRadiusMeters = 175
+
+        await model.setHomeRegionFromCurrentLocation()
+
+        let capturedRequests = await service.captureRequests
+        let savedConfiguration = await service.savedConfigurations.last
+        #expect(capturedRequests.count == 1)
+        #expect(capturedRequests.first?.0 == "home")
+        #expect(capturedRequests.first?.1 == 175)
+        #expect(model.homeRegionSummary.contains("47.37690"))
+        #expect(model.feedback?.style == .success)
+        #expect(model.feedback?.message == "Home region updated and saved.")
+        #expect(savedConfiguration?.homeRegion?.identifier == "home")
+        #expect(savedConfiguration?.enabledFeatures.contains(.homeWork) == true)
+    }
+
+    @Test
+    func searchHomeRegionFromAddressUpdatesDraftConfiguration() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(deviceID: "device-1")
+            ),
+            nextSearchRegion: RegionConfiguration(
+                identifier: "home",
+                latitude: 47.42310,
+                longitude: 8.54760,
+                radiusMeters: 200
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        model.homeSearchQuery = "Bahnhofstrasse 1 Zurich"
+        model.homeRadiusMeters = 200
+
+        await model.searchHomeRegionFromAddress()
+
+        let searchRequests = await service.searchRequests
+        let savedConfiguration = await service.savedConfigurations.last
+        #expect(searchRequests.count == 1)
+        #expect(searchRequests.first?.0 == "home")
+        #expect(searchRequests.first?.1 == "Bahnhofstrasse 1 Zurich")
+        #expect(searchRequests.first?.2 == 200)
+        #expect(model.selectedFeatures.contains(.homeWork))
+        #expect(model.homeRegionSummary.contains("47.42310"))
+        #expect(model.feedback?.message == "Home region found and saved.")
+        #expect(savedConfiguration?.homeRegion?.identifier == "home")
+    }
+
+    @Test
+    func refreshStateUpdatesLastStatusRefreshAt() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(configuration: RuntimeConfiguration(deviceID: "device-1"))
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        let firstRefresh = try #require(model.lastStatusRefreshAt)
+
+        try? await Task.sleep(for: .milliseconds(20))
+        await model.refreshState()
+
+        let secondRefresh = try #require(model.lastStatusRefreshAt)
+        #expect(secondRefresh >= firstRefresh)
+    }
+
+    @Test
     func startupStatusTextExplainsCurrentLaunchState() async throws {
         let service = FakeSenseKitAppService(
             initialState: SenseKitLoadedState(configuration: RuntimeConfiguration(deviceID: "device-1"))
@@ -207,7 +420,7 @@ struct SenseKitAppModelTests {
         let model = SenseKitAppModel(service: service)
 
         #expect(model.startupTitle == "Starting SenseKit")
-        #expect(model.startupMessage == "Opening the local runtime, loading saved events, and checking motion export.")
+        #expect(model.startupMessage == "Opening the local runtime, loading saved events, and checking motion and location collectors.")
 
         await model.load()
 
@@ -258,9 +471,19 @@ private actor FakeSenseKitAppService: SenseKitAppService {
     private var currentState: SenseKitLoadedState
     private(set) var savedConfigurations: [RuntimeConfiguration] = []
     private(set) var sentTestEvents: [ContextEventType] = []
+    private let currentRegionResult: RegionConfiguration?
+    private let searchRegionResult: RegionConfiguration?
+    private(set) var captureRequests: [(String, Double)] = []
+    private(set) var searchRequests: [(String, String, Double)] = []
 
-    init(initialState: SenseKitLoadedState) {
+    init(
+        initialState: SenseKitLoadedState,
+        nextCurrentRegion: RegionConfiguration? = nil,
+        nextSearchRegion: RegionConfiguration? = nil
+    ) {
         self.currentState = initialState
+        self.currentRegionResult = nextCurrentRegion
+        self.searchRegionResult = nextSearchRegion
     }
 
     func loadState() async throws -> SenseKitLoadedState {
@@ -278,6 +501,22 @@ private actor FakeSenseKitAppService: SenseKitAppService {
 
     func sendTestEvent(_ eventType: ContextEventType) async throws {
         sentTestEvents.append(eventType)
+    }
+
+    func captureCurrentRegion(identifier: String, radiusMeters: Double) async throws -> RegionConfiguration {
+        captureRequests.append((identifier, radiusMeters))
+        guard let currentRegionResult else {
+            throw NSError(domain: "FakeSenseKitAppService", code: 1)
+        }
+        return currentRegionResult
+    }
+
+    func searchRegion(query: String, identifier: String, radiusMeters: Double) async throws -> RegionConfiguration {
+        searchRequests.append((identifier, query, radiusMeters))
+        guard let searchRegionResult else {
+            throw NSError(domain: "FakeSenseKitAppService", code: 2)
+        }
+        return searchRegionResult
     }
 
     func setNextLoadedState(_ state: SenseKitLoadedState) {

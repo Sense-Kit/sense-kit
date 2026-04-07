@@ -9,6 +9,8 @@ public struct SettingsView: View {
         case endpoint
         case bearer
         case secret
+        case homeSearch
+        case workSearch
     }
 
     public init(model: SenseKitAppModel) {
@@ -35,7 +37,14 @@ public struct SettingsView: View {
                         await model.saveConnection()
                     }
                 }
+                .buttonStyle(.borderedProminent)
                 .disabled(model.isBusy)
+                .overlay(alignment: .trailing) {
+                    if model.isSavingConfiguration {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
 
                 if let feedback = model.feedback {
                     FeedbackBanner(feedback: feedback)
@@ -43,7 +52,17 @@ public struct SettingsView: View {
             }
 
             Section("Driving") {
-                Toggle("Improve with Location", isOn: $model.drivingLocationBoostEnabled)
+                Toggle(
+                    "Improve with Location",
+                    isOn: Binding(
+                        get: { model.drivingLocationBoostEnabled },
+                        set: { newValue in
+                            Task {
+                                await model.setDrivingLocationBoostEnabled(newValue)
+                            }
+                        }
+                    )
+                )
                 Text("Driving works without Location. This only improves confidence and timing.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -51,7 +70,126 @@ public struct SettingsView: View {
 
             Section("Motion Activity Alpha") {
                 LabeledContent("Motion collector", value: model.wakeCollectorStatusText)
+                LabeledContent("Status checks", value: model.statusRefreshText)
+                Button {
+                    Task {
+                        await model.refreshStatusNow()
+                    }
+                } label: {
+                    ActionButtonLabel(
+                        title: "Refresh Motion Status",
+                        isRunning: model.isRefreshingStatuses
+                    )
+                }
+                .disabled(model.isBusy)
                 Text(model.wakeCollectorHelpText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Location Alpha") {
+                LabeledContent("Location collector", value: model.locationCollectorStatusText)
+                LabeledContent("Status checks", value: model.statusRefreshText)
+                Button {
+                    Task {
+                        await model.refreshStatusNow()
+                    }
+                } label: {
+                    ActionButtonLabel(
+                        title: "Refresh Location Status",
+                        isRunning: model.isRefreshingStatuses
+                    )
+                }
+                .disabled(model.isBusy)
+                Text(model.locationCollectorHelpText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Home / Work") {
+                VStack(alignment: .leading, spacing: 6) {
+                    LabeledContent("Home", value: model.homeRegionSummary)
+                    Stepper("Home radius: \(Int(model.homeRadiusMeters)) m", value: $model.homeRadiusMeters, in: 50...500, step: 25)
+                    Button {
+                        dismissInput()
+                        Task {
+                            await model.setHomeRegionFromCurrentLocation()
+                        }
+                    } label: {
+                        ActionButtonLabel(
+                            title: "Use Current Location as Home",
+                            isRunning: model.isCapturingHomeRegion
+                        )
+                    }
+                    .disabled(model.isBusy)
+
+                    TextField("Search home address", text: $model.homeSearchQuery)
+                        .addressTextEntryStyle()
+                        .focused($focusedField, equals: Field.homeSearch)
+                    Button {
+                        dismissInput()
+                        Task {
+                            await model.searchHomeRegionFromAddress()
+                        }
+                    } label: {
+                        ActionButtonLabel(
+                            title: "Search Address for Home",
+                            isRunning: model.isSearchingHomeRegion
+                        )
+                    }
+                    .disabled(model.isBusy || model.homeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    Button("Clear Home") {
+                        dismissInput()
+                        Task {
+                            await model.clearHomeRegion()
+                        }
+                    }
+                    .disabled(model.isBusy || model.homeRegionSummary == "Not set")
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    LabeledContent("Work", value: model.workRegionSummary)
+                    Stepper("Work radius: \(Int(model.workRadiusMeters)) m", value: $model.workRadiusMeters, in: 50...500, step: 25)
+                    Button {
+                        dismissInput()
+                        Task {
+                            await model.setWorkRegionFromCurrentLocation()
+                        }
+                    } label: {
+                        ActionButtonLabel(
+                            title: "Use Current Location as Work",
+                            isRunning: model.isCapturingWorkRegion
+                        )
+                    }
+                    .disabled(model.isBusy)
+
+                    TextField("Search work address", text: $model.workSearchQuery)
+                        .addressTextEntryStyle()
+                        .focused($focusedField, equals: Field.workSearch)
+                    Button {
+                        dismissInput()
+                        Task {
+                            await model.searchWorkRegionFromAddress()
+                        }
+                    } label: {
+                        ActionButtonLabel(
+                            title: "Search Address for Work",
+                            isRunning: model.isSearchingWorkRegion
+                        )
+                    }
+                    .disabled(model.isBusy || model.workSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    Button("Clear Work") {
+                        dismissInput()
+                        Task {
+                            await model.clearWorkRegion()
+                        }
+                    }
+                    .disabled(model.isBusy || model.workRegionSummary == "Not set")
+                }
+
+                Text("You can stand at the place and use Current Location, or type a street or address and search for it. iPhone usually asks for While Using first, then asks for Always after you save Home or Work.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -69,15 +207,20 @@ public struct SettingsView: View {
                     }
                 }
 
-                Button("Send Test Event") {
+                Button {
                     dismissInput()
                     Task {
                         await model.sendTestEvent()
                     }
+                } label: {
+                    ActionButtonLabel(
+                        title: "Send Test Event",
+                        isRunning: model.isSendingTestEvent
+                    )
                 }
                 .disabled(model.isBusy || model.endpointURLText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-                Text("This uses the real queue, audit log, and OpenClaw delivery path before passive collectors are wired.")
+                Text("This uses the real queue, audit log, and OpenClaw delivery path before passive collectors are fully wired.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -130,6 +273,17 @@ private extension View {
     }
 
     @ViewBuilder
+    func addressTextEntryStyle() -> some View {
+        #if os(iOS)
+        self
+            .textInputAutocapitalization(.words)
+            .autocorrectionDisabled(false)
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
     func settingsKeyboardDismissSupport(_ dismiss: @escaping () -> Void) -> some View {
         #if os(iOS)
         self
@@ -145,6 +299,22 @@ private extension View {
         #else
         self
         #endif
+    }
+}
+
+private struct ActionButtonLabel: View {
+    let title: String
+    let isRunning: Bool
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            if isRunning {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
     }
 }
 

@@ -2,6 +2,17 @@ import Foundation
 import Observation
 import SenseKitRuntime
 
+public enum SettingsBusyAction: Sendable {
+    case loading
+    case savingConfiguration
+    case sendingTestEvent
+    case capturingHomeRegion
+    case capturingWorkRegion
+    case searchingHomeRegion
+    case searchingWorkRegion
+    case refreshingStatuses
+}
+
 @MainActor
 @Observable
 public final class SenseKitAppModel {
@@ -9,15 +20,22 @@ public final class SenseKitAppModel {
     public var connectionStatus: String
     public var drivingLocationBoostEnabled: Bool
     public var wakeCollectorStatus: WakeCollectorStatus
+    public var locationCollectorStatus: LocationCollectorStatus
     public var timelineEntries: [DebugTimelineEntry]
     public var auditEntries: [AuditLogEntry]
     public var endpointURLText: String
     public var bearerToken: String
     public var hmacSecret: String
+    public var homeSearchQuery: String
+    public var workSearchQuery: String
+    public var homeRadiusMeters: Double
+    public var workRadiusMeters: Double
     public var selectedTestEvent: ContextEventType
     public var isBusy: Bool
+    public var busyAction: SettingsBusyAction?
     public var errorMessage: String?
     public var feedback: SenseKitFeedback?
+    public var lastStatusRefreshAt: Date?
 
     private let service: any SenseKitAppService
     private var configuration: RuntimeConfiguration
@@ -29,15 +47,22 @@ public final class SenseKitAppModel {
         connectionStatus: String = "Not connected",
         drivingLocationBoostEnabled: Bool = false,
         wakeCollectorStatus: WakeCollectorStatus = .inactive,
+        locationCollectorStatus: LocationCollectorStatus = .inactive,
         timelineEntries: [DebugTimelineEntry] = [],
         auditEntries: [AuditLogEntry] = [],
         endpointURLText: String = "",
         bearerToken: String = "",
         hmacSecret: String = "",
+        homeSearchQuery: String = "",
+        workSearchQuery: String = "",
+        homeRadiusMeters: Double = 150,
+        workRadiusMeters: Double = 150,
         selectedTestEvent: ContextEventType = .drivingStarted,
         isBusy: Bool = false,
+        busyAction: SettingsBusyAction? = nil,
         errorMessage: String? = nil,
         feedback: SenseKitFeedback? = nil,
+        lastStatusRefreshAt: Date? = nil,
         configuration: RuntimeConfiguration = RuntimeConfiguration(deviceID: "preview-device")
     ) {
         self.service = service
@@ -45,22 +70,33 @@ public final class SenseKitAppModel {
         self.connectionStatus = connectionStatus
         self.drivingLocationBoostEnabled = drivingLocationBoostEnabled
         self.wakeCollectorStatus = wakeCollectorStatus
+        self.locationCollectorStatus = locationCollectorStatus
         self.timelineEntries = timelineEntries
         self.auditEntries = auditEntries
         self.endpointURLText = endpointURLText
         self.bearerToken = bearerToken
         self.hmacSecret = hmacSecret
+        self.homeSearchQuery = homeSearchQuery
+        self.workSearchQuery = workSearchQuery
+        self.homeRadiusMeters = homeRadiusMeters
+        self.workRadiusMeters = workRadiusMeters
         self.selectedTestEvent = selectedTestEvent
         self.isBusy = isBusy
+        self.busyAction = busyAction
         self.errorMessage = errorMessage
         self.feedback = feedback
+        self.lastStatusRefreshAt = lastStatusRefreshAt
         self.configuration = configuration
     }
 
     public func load() async {
         guard !isBusy else { return }
         isBusy = true
-        defer { isBusy = false }
+        busyAction = .loading
+        defer {
+            isBusy = false
+            busyAction = nil
+        }
 
         do {
             let state = try await service.loadState()
@@ -82,16 +118,38 @@ public final class SenseKitAppModel {
 
         do {
             let state = try await service.loadState()
-            apply(state)
+            apply(state, preserveDraftConfiguration: hasPendingConfigurationChanges(comparedTo: state.configuration))
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    public func refreshStatusNow() async {
+        guard hasLoaded, !isBusy else { return }
+        isBusy = true
+        busyAction = .refreshingStatuses
+        defer {
+            isBusy = false
+            busyAction = nil
+        }
+
+        do {
+            let state = try await service.loadState()
+            apply(state, preserveDraftConfiguration: hasPendingConfigurationChanges(comparedTo: state.configuration))
+            setSuccess(message: "Statuses refreshed.")
+        } catch {
+            setError(status: "Refresh failed", message: error.localizedDescription)
         }
     }
 
     public func saveConnection() async {
         guard !isBusy else { return }
         isBusy = true
-        defer { isBusy = false }
+        busyAction = .savingConfiguration
+        defer {
+            isBusy = false
+            busyAction = nil
+        }
 
         let endpoint = endpointURLText.trimmingCharacters(in: .whitespacesAndNewlines)
         let bearer = bearerToken.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -129,7 +187,7 @@ public final class SenseKitAppModel {
             let state = try await service.loadState()
             apply(state)
             if nextConfiguration.openClaw == nil {
-                setSuccess(message: "Configuration cleared. SenseKit will stop sending events.")
+                setSuccess(message: "Configuration saved. OpenClaw delivery is off.")
             } else {
                 setSuccess(message: "Configuration saved. OpenClaw is ready.")
             }
@@ -146,7 +204,11 @@ public final class SenseKitAppModel {
         }
 
         isBusy = true
-        defer { isBusy = false }
+        busyAction = .sendingTestEvent
+        defer {
+            isBusy = false
+            busyAction = nil
+        }
 
         do {
             try await service.sendTestEvent(selectedTestEvent)
@@ -156,6 +218,62 @@ public final class SenseKitAppModel {
         } catch {
             setError(status: "Test event failed", message: error.localizedDescription)
         }
+    }
+
+    public func toggleFeature(_ feature: FeatureFlag) async {
+        if selectedFeatures.contains(feature) {
+            selectedFeatures.remove(feature)
+        } else {
+            selectedFeatures.insert(feature)
+        }
+
+        await persistRuntimeConfigurationDraft(successMessage: "Feature selection saved.")
+    }
+
+    public func setDrivingLocationBoostEnabled(_ enabled: Bool) async {
+        drivingLocationBoostEnabled = enabled
+        await persistRuntimeConfigurationDraft(successMessage: "Driving location boost saved.")
+    }
+
+    public func setHomeRegionFromCurrentLocation() async {
+        await setRegionFromCurrentLocation(identifier: "home", radiusMeters: homeRadiusMeters, action: .capturingHomeRegion)
+    }
+
+    public func setWorkRegionFromCurrentLocation() async {
+        await setRegionFromCurrentLocation(identifier: "work", radiusMeters: workRadiusMeters, action: .capturingWorkRegion)
+    }
+
+    public func searchHomeRegionFromAddress() async {
+        await searchRegionFromAddress(
+            query: homeSearchQuery,
+            identifier: "home",
+            radiusMeters: homeRadiusMeters,
+            action: .searchingHomeRegion
+        )
+    }
+
+    public func searchWorkRegionFromAddress() async {
+        await searchRegionFromAddress(
+            query: workSearchQuery,
+            identifier: "work",
+            radiusMeters: workRadiusMeters,
+            action: .searchingWorkRegion
+        )
+    }
+
+    public func clearHomeRegion() async {
+        configuration.homeRegion = nil
+        await persistRuntimeConfigurationDraft(successMessage: "Home region cleared.")
+    }
+
+    public func clearWorkRegion() async {
+        configuration.workRegion = nil
+        await persistRuntimeConfigurationDraft(successMessage: "Work region cleared.")
+    }
+
+    public func persistRuntimeDraftOnBackground() async {
+        guard hasLoaded, !isBusy else { return }
+        await persistRuntimeConfigurationDraft(successMessage: nil)
     }
 
     public static var preview: SenseKitAppModel {
@@ -171,6 +289,7 @@ public final class SenseKitAppModel {
                 )
             ),
             wakeCollectorStatus: .running,
+            locationCollectorStatus: .running,
             timelineEntries: [
                 DebugTimelineEntry(createdAt: Date(), category: .signal, message: "Received signal motion.automotive_entered"),
                 DebugTimelineEntry(createdAt: Date(), category: .event, message: "Emitted driving_started")
@@ -203,17 +322,29 @@ public final class SenseKitAppModel {
         }
     }
 
-    private func apply(_ state: SenseKitLoadedState) {
-        configuration = state.configuration
-        selectedFeatures = state.configuration.enabledFeatures
-        drivingLocationBoostEnabled = state.configuration.drivingLocationBoostEnabled
+    private func apply(_ state: SenseKitLoadedState, preserveDraftConfiguration: Bool = false) {
+        if !preserveDraftConfiguration {
+            configuration = state.configuration
+        }
+
+        lastStatusRefreshAt = Date()
         wakeCollectorStatus = state.wakeCollectorStatus
+        locationCollectorStatus = state.locationCollectorStatus
         timelineEntries = state.timelineEntries
         auditEntries = state.auditEntries
+        connectionStatus = Self.connectionStatus(for: state.configuration)
+
+        guard !preserveDraftConfiguration else {
+            return
+        }
+
+        selectedFeatures = state.configuration.enabledFeatures
+        drivingLocationBoostEnabled = state.configuration.drivingLocationBoostEnabled
         endpointURLText = state.configuration.openClaw?.endpointURL.absoluteString ?? ""
         bearerToken = state.configuration.openClaw?.bearerToken ?? ""
         hmacSecret = state.configuration.openClaw?.hmacSecret ?? ""
-        connectionStatus = Self.connectionStatus(for: state.configuration)
+        homeRadiusMeters = state.configuration.homeRegion?.radiusMeters ?? homeRadiusMeters
+        workRadiusMeters = state.configuration.workRegion?.radiusMeters ?? workRadiusMeters
     }
 
     private func clearFeedback() {
@@ -274,6 +405,66 @@ public final class SenseKitAppModel {
         }
     }
 
+    public var locationCollectorStatusText: String {
+        switch locationCollectorStatus {
+        case .inactive:
+            return "Location collection is off"
+        case .configurationRequired:
+            return "Home or Work needs setup"
+        case .permissionRequired:
+            return "Needs Location access"
+        case .permissionDenied:
+            return "Location access denied"
+        case .unavailable:
+            return "Location unavailable"
+        case .running:
+            return "Running"
+        }
+    }
+
+    public var locationCollectorHelpText: String {
+        switch locationCollectorStatus {
+        case .inactive:
+            return "Turn on the driving location boost or configure Home / Work to start location collection."
+        case .configurationRequired:
+            return "Save at least one Home or Work region, then tap Save Configuration."
+        case .permissionRequired:
+            return "Current Location capture starts with While Using the App. After you save Home or Work, iPhone should also ask for Always Allow so background geofences can work."
+        case .permissionDenied:
+            return "Turn Location access back on in iPhone Settings if you want place detection or driving location boosts."
+        case .unavailable:
+            return "This device does not expose the location services SenseKit needs."
+        case .running:
+            return "Location monitoring is active. SenseKit can now observe region entries and movement-based location boosts."
+        }
+    }
+
+    public var statusRefreshText: String {
+        guard let lastStatusRefreshAt else {
+            return "Status not checked yet"
+        }
+
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return "Last checked \(formatter.localizedString(for: lastStatusRefreshAt, relativeTo: Date()))"
+    }
+
+    public var isSavingConfiguration: Bool { busyAction == .savingConfiguration }
+    public var isSendingTestEvent: Bool { busyAction == .sendingTestEvent }
+    public var isCapturingHomeRegion: Bool { busyAction == .capturingHomeRegion }
+    public var isCapturingWorkRegion: Bool { busyAction == .capturingWorkRegion }
+    public var isSearchingHomeRegion: Bool { busyAction == .searchingHomeRegion }
+    public var isSearchingWorkRegion: Bool { busyAction == .searchingWorkRegion }
+    public var isRefreshingStatuses: Bool { busyAction == .refreshingStatuses }
+
+    public var homeRegionSummary: String {
+        Self.regionSummary(configuration.homeRegion)
+    }
+
+    public var workRegionSummary: String {
+        Self.regionSummary(configuration.workRegion)
+    }
+
     public var showsStartupScreen: Bool {
         !hasLoaded
     }
@@ -292,7 +483,155 @@ public final class SenseKitAppModel {
         if hasLoaded {
             return "The local runtime is ready."
         }
-        return "Opening the local runtime, loading saved events, and checking motion export."
+        return "Opening the local runtime, loading saved events, and checking motion and location collectors."
+    }
+
+    private func hasPendingConfigurationChanges(comparedTo configuration: RuntimeConfiguration) -> Bool {
+        if selectedFeatures != configuration.enabledFeatures {
+            return true
+        }
+
+        if drivingLocationBoostEnabled != configuration.drivingLocationBoostEnabled {
+            return true
+        }
+
+        if self.configuration.homeRegion != configuration.homeRegion {
+            return true
+        }
+
+        if self.configuration.workRegion != configuration.workRegion {
+            return true
+        }
+
+        let savedEndpoint = configuration.openClaw?.endpointURL.absoluteString ?? ""
+        if endpointURLText != savedEndpoint {
+            return true
+        }
+
+        let savedBearer = configuration.openClaw?.bearerToken ?? ""
+        if bearerToken != savedBearer {
+            return true
+        }
+
+        let savedSecret = configuration.openClaw?.hmacSecret ?? ""
+        return hmacSecret != savedSecret
+    }
+
+    private func setRegionFromCurrentLocation(identifier: String, radiusMeters: Double, action: SettingsBusyAction) async {
+        guard !isBusy else { return }
+        isBusy = true
+        busyAction = action
+        defer {
+            isBusy = false
+            busyAction = nil
+        }
+
+        do {
+            let region = try await service.captureCurrentRegion(identifier: identifier, radiusMeters: radiusMeters)
+            let message = identifier == "home" ? "Home region updated and saved." : "Work region updated and saved."
+            await applyRegion(region, successMessage: message)
+        } catch {
+            setError(status: "Location capture failed", message: error.localizedDescription)
+        }
+    }
+
+    private func searchRegionFromAddress(
+        query: String,
+        identifier: String,
+        radiusMeters: Double,
+        action: SettingsBusyAction
+    ) async {
+        guard !isBusy else { return }
+        isBusy = true
+        busyAction = action
+        defer {
+            isBusy = false
+            busyAction = nil
+        }
+
+        do {
+            let region = try await service.searchRegion(query: query, identifier: identifier, radiusMeters: radiusMeters)
+            let message = identifier == "home" ? "Home region found and saved." : "Work region found and saved."
+            await applyRegion(region, successMessage: message)
+        } catch {
+            setError(status: "Address search failed", message: error.localizedDescription)
+        }
+    }
+
+    private func applyRegion(_ region: RegionConfiguration, successMessage: String) async {
+        selectedFeatures.insert(.homeWork)
+
+        if region.identifier == "home" {
+            configuration.homeRegion = region
+            homeRadiusMeters = region.radiusMeters
+        } else {
+            configuration.workRegion = region
+            workRadiusMeters = region.radiusMeters
+        }
+
+        await persistRuntimeConfigurationDraft(successMessage: successMessage)
+    }
+
+    private func persistRuntimeConfigurationDraft(successMessage: String?) async {
+        let wasBusy = isBusy
+        let previousAction = busyAction
+
+        if !wasBusy {
+            isBusy = true
+            busyAction = .savingConfiguration
+        }
+
+        defer {
+            if !wasBusy {
+                isBusy = false
+                busyAction = nil
+            } else {
+                busyAction = previousAction
+            }
+        }
+
+        do {
+            let nextConfiguration = draftRuntimeConfiguration()
+            try await service.saveConfiguration(nextConfiguration)
+            configuration = nextConfiguration
+            if let successMessage {
+                setSuccess(message: successMessage)
+            }
+        } catch {
+            setError(status: "Save failed", message: error.localizedDescription)
+        }
+    }
+
+    private func draftRuntimeConfiguration() -> RuntimeConfiguration {
+        var nextConfiguration = configuration
+        nextConfiguration.enabledFeatures = selectedFeatures
+        nextConfiguration.drivingLocationBoostEnabled = drivingLocationBoostEnabled
+
+        if var homeRegion = nextConfiguration.homeRegion {
+            homeRegion.radiusMeters = homeRadiusMeters
+            nextConfiguration.homeRegion = homeRegion
+        }
+
+        if var workRegion = nextConfiguration.workRegion {
+            workRegion.radiusMeters = workRadiusMeters
+            nextConfiguration.workRegion = workRegion
+        }
+
+        return nextConfiguration
+    }
+
+    private static func regionSummary(_ region: RegionConfiguration?) -> String {
+        guard let region else {
+            return "Not set"
+        }
+
+        return String(
+            format: "%.5f, %.5f · %.0f m",
+            locale: Locale(identifier: "en_US_POSIX"),
+            region.latitude,
+            region.longitude,
+            region.radiusMeters
+        )
     }
 }
 
@@ -310,4 +649,12 @@ private actor PreviewSenseKitAppService: SenseKitAppService {
     func saveConfiguration(_ configuration: RuntimeConfiguration) async throws {}
 
     func sendTestEvent(_ eventType: ContextEventType) async throws {}
+
+    func captureCurrentRegion(identifier: String, radiusMeters: Double) async throws -> RegionConfiguration {
+        RegionConfiguration(identifier: identifier, latitude: 47.3769, longitude: 8.5417, radiusMeters: radiusMeters)
+    }
+
+    func searchRegion(query: String, identifier: String, radiusMeters: Double) async throws -> RegionConfiguration {
+        RegionConfiguration(identifier: identifier, latitude: 47.3769, longitude: 8.5417, radiusMeters: radiusMeters)
+    }
 }

@@ -19,7 +19,9 @@ public struct FeaturePickerView: View {
 
                 ForEach(featureCards) { card in
                     Button {
-                        toggle(card.feature)
+                        Task {
+                            await model.toggleFeature(card.feature)
+                        }
                     } label: {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
@@ -48,14 +50,6 @@ public struct FeaturePickerView: View {
                 }
             }
             .padding()
-        }
-    }
-
-    private func toggle(_ feature: FeatureFlag) {
-        if model.selectedFeatures.contains(feature) {
-            model.selectedFeatures.remove(feature)
-        } else {
-            model.selectedFeatures.insert(feature)
         }
     }
 

@@ -4,7 +4,7 @@ import Foundation
 import CoreLocation
 
 @MainActor
-public final class LocationCollector: NSObject, ContextSignalCollector {
+public final class LocationCollector: NSObject, LocationSignalCollecting {
     private let manager = CLLocationManager()
     private let signalHandler: SignalHandler
     private let configuration: RuntimeConfiguration
@@ -83,6 +83,19 @@ extension LocationCollector: @preconcurrency CLLocationManagerDelegate {
                     validForSec: 180
                 )
             )
+        }
+    }
+
+    public func locationManager(_ manager: CLLocationManager, didDetermineState state: CLRegionState, for region: CLRegion) {
+        switch state {
+        case .inside:
+            locationManager(manager, didEnterRegion: region)
+        case .outside:
+            locationManager(manager, didExitRegion: region)
+        case .unknown:
+            break
+        @unknown default:
+            break
         }
     }
 
@@ -165,7 +178,7 @@ extension LocationCollector: @preconcurrency CLLocationManagerDelegate {
     }
 }
 #else
-public final class LocationCollector: ContextSignalCollector {
+public final class LocationCollector: LocationSignalCollecting {
     public init(configuration: RuntimeConfiguration, signalHandler: @escaping SignalHandler) {}
     public func start() async {}
     public func stop() {}

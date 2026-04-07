@@ -57,11 +57,18 @@ public struct SenseKitRootView: View {
             await model.loadIfNeeded()
         }
         .task(id: scenePhase) {
-            guard scenePhase == .active else { return }
-
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(2))
-                await model.refreshState()
+            switch scenePhase {
+            case .active:
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(2))
+                    await model.refreshState()
+                }
+            case .background:
+                await model.persistRuntimeDraftOnBackground()
+            case .inactive:
+                break
+            @unknown default:
+                break
             }
         }
     }
