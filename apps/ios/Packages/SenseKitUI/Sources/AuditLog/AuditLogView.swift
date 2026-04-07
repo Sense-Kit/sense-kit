@@ -3,6 +3,7 @@ import SenseKitRuntime
 
 public struct AuditLogView: View {
     private let entries: [AuditLogEntry]
+    @State private var copiedEntryID: String?
 
     public init(entries: [AuditLogEntry]) {
         self.entries = entries
@@ -15,6 +16,16 @@ public struct AuditLogView: View {
                     Text(entry.eventType)
                         .font(.headline)
                     Spacer()
+                    Button {
+                        ClipboardWriter.copy(EntryCopyFormatter.auditEntry(entry))
+                        copiedEntryID = entry.id
+                    } label: {
+                        Image(systemName: copiedEntryID == entry.id ? "checkmark.circle.fill" : "doc.on.doc")
+                            .foregroundStyle(copiedEntryID == entry.id ? .green : .secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Copy audit entry")
+
                     Text(entry.status.rawValue)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
@@ -29,8 +40,14 @@ public struct AuditLogView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, 4)
+            .textSelection(.enabled)
+            .contextMenu {
+                Button("Copy Entry") {
+                    ClipboardWriter.copy(EntryCopyFormatter.auditEntry(entry))
+                    copiedEntryID = entry.id
+                }
+            }
         }
         .navigationTitle("Audit Log")
     }
 }
-

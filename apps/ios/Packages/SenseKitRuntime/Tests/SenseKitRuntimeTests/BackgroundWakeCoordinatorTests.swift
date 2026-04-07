@@ -1,0 +1,180 @@
+import Foundation
+import XCTest
+@testable import SenseKitRuntime
+
+final class BackgroundWakeCoordinatorTests: XCTestCase {
+    func testSendTestEventDeliversAndWritesAuditAndTimeline() async throws {
+        let clock = FixedClock(currentDate: date(hour: 12, minute: 15))
+        let store = TestRuntimeStore()
+        let settingsStore = InMemorySettingsStore(
+            configuration: RuntimeConfiguration(
+                deviceID: "test-device",
+                openClaw: OpenClawConfiguration(
+                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
+                    bearerToken: "bearer-token",
+                    hmacSecret: "hmac-secret"
+                )
+            )
+        )
+
+        await MockURLProtocol.setRequestHandler { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/hooks/sensekit")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer bearer-token")
+            XCTAssertEqual(request.httpMethod, "POST")
+
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(#"{"ok":true}"#.utf8))
+        }
+
+        let sessionConfiguration = URLSessionConfiguration.ephemeral
+        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: sessionConfiguration)
+
+        let coordinator = BackgroundWakeCoordinator(
+            store: store,
+            engine: CorroborationEngine(
+                store: store,
+                configuration: RuntimeConfiguration(deviceID: "test-device"),
+                clock: clock
+            ),
+            snapshotEnricher: SnapshotEnricher(),
+            policyEngine: PolicyEngine(),
+            deliveryClient: DeliveryClient(session: session),
+            settingsStore: settingsStore,
+            clock: clock
+        )
+
+        let result = try await coordinator.sendTestEvent(.drivingStarted)
+
+        XCTAssertEqual(result.event.eventType, .drivingStarted)
+        XCTAssertEqual(result.event.confidence, 1.0)
+        XCTAssertEqual(result.event.reasons, ["manual.test_button"])
+
+        let auditEntries = try await store.auditEntries(limit: 10)
+        XCTAssertEqual(auditEntries.count, 2)
+        XCTAssertEqual(auditEntries[0].status, .queued)
+        XCTAssertEqual(auditEntries[1].status, .delivered)
+        XCTAssertEqual(auditEntries[1].destination, "https://example.com/hooks/sensekit")
+
+        let timelineEntries = try await store.timelineEntries(limit: 10)
+        XCTAssertTrue(timelineEntries.contains { $0.message.contains("Manual test event driving_started") })
+
+        let state = try await store.loadRuntimeState()
+        XCTAssertTrue(state.isDriving)
+    }
+
+    private func date(hour: Int, minute: Int) -> Date {
+        Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 7, hour: hour, minute: minute))!
+    }
+}
+
+private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
+    private actor RequestHandlerStore {
+        private var requestHandler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
+
+        func set(_ handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?) {
+            requestHandler = handler
+        }
+
+        func load() -> (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))? {
+            requestHandler
+        }
+    }
+
+    private static let requestHandlerStore = RequestHandlerStore()
+
+    static func setRequestHandler(_ handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?) async {
+        await requestHandlerStore.set(handler)
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        Task {
+            guard let handler = await Self.requestHandlerStore.load() else {
+                client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+                return
+            }
+
+            do {
+                let (response, data) = try handler(request)
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                client?.urlProtocol(self, didLoad: data)
+                client?.urlProtocolDidFinishLoading(self)
+            } catch {
+                client?.urlProtocol(self, didFailWithError: error)
+            }
+        }
+    }
+
+    override func stopLoading() {}
+}
+
+private actor TestRuntimeStore: RuntimeStore {
+    private var signals: [ContextSignal] = []
+    private var runtimeState = RuntimeState()
+    private var debugEntries: [DebugTimelineEntry] = []
+    private var auditLog: [AuditLogEntry] = []
+    private var queue: [QueuedWebhook] = []
+
+    func saveSignal(_ signal: ContextSignal) async throws {
+        signals.append(signal)
+    }
+
+    func activeSignals(signalKeys: Set<String>, at date: Date) async throws -> [ContextSignal] {
+        signals.filter { signalKeys.contains($0.signalKey) && $0.expiresAt >= date }
+    }
+
+    func pruneExpiredSignals(before date: Date) async throws {
+        signals.removeAll { $0.expiresAt < date }
+    }
+
+    func loadRuntimeState() async throws -> RuntimeState {
+        runtimeState
+    }
+
+    func saveRuntimeState(_ state: RuntimeState) async throws {
+        runtimeState = state
+    }
+
+    func appendDebugEntry(_ entry: DebugTimelineEntry) async throws {
+        debugEntries.append(entry)
+    }
+
+    func appendAuditEntry(_ entry: AuditLogEntry) async throws {
+        auditLog.append(entry)
+    }
+
+    func enqueue(_ item: QueuedWebhook) async throws {
+        queue.append(item)
+    }
+
+    func dueQueueItems(at date: Date, limit: Int) async throws -> [QueuedWebhook] {
+        Array(queue.filter { $0.status == .queued || $0.status == .retryWait }.prefix(limit))
+    }
+
+    func updateQueueItem(_ item: QueuedWebhook) async throws {
+        if let index = queue.firstIndex(where: { $0.id == item.id }) {
+            queue[index] = item
+        }
+    }
+
+    func timelineEntries(limit: Int) async throws -> [DebugTimelineEntry] {
+        Array(debugEntries.prefix(limit))
+    }
+
+    func auditEntries(limit: Int) async throws -> [AuditLogEntry] {
+        Array(auditLog.prefix(limit))
+    }
+}

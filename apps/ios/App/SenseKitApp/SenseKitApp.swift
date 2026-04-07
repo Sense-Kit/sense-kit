@@ -11,9 +11,11 @@ struct SenseKitAppIntentsPackage: AppIntentsPackage {
 
 @main
 struct SenseKitApp: App {
+    @State private var model = SenseKitAppModel.live()
+
     var body: some Scene {
         WindowGroup {
-            SenseKitRootView()
+            SenseKitRootView(model: model)
         }
     }
 }

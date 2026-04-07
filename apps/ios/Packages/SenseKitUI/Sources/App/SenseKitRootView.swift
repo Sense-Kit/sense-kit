@@ -37,6 +37,8 @@ public struct SenseKitRootView: View {
                 Label("Settings", systemImage: "gearshape")
             }
         }
+        .task {
+            await model.loadIfNeeded()
+        }
     }
 }
-

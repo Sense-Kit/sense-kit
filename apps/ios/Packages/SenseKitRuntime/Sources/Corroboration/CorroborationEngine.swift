@@ -90,7 +90,7 @@ public actor CorroborationEngine {
             dedupeKey: dedupeKey(for: eventType, at: clock.now())
         )
 
-        applyPostEmitState(for: eventType, state: &state, at: clock.now())
+        RuntimeStateReducer.apply(eventType, at: clock.now(), to: &state)
 
         try await store.appendDebugEntry(
             DebugTimelineEntry(
@@ -178,33 +178,6 @@ public actor CorroborationEngine {
         }
     }
 
-    private func applyPostEmitState(for eventType: ContextEventType, state: inout RuntimeState, at date: Date) {
-        state.setLastEventDate(date, for: eventType)
-
-        switch eventType {
-        case .wakeConfirmed:
-            state.lastWakeAt = date
-        case .drivingStarted:
-            state.isDriving = true
-        case .drivingStopped:
-            state.isDriving = false
-        case .arrivedHome:
-            state.currentPlace = .home
-        case .leftHome:
-            state.currentPlace = .other
-        case .arrivedWork:
-            state.currentPlace = .work
-        case .leftWork:
-            state.currentPlace = .other
-        case .workoutStarted:
-            state.isWorkoutActive = true
-        case .workoutEnded:
-            state.isWorkoutActive = false
-        case .focusOn, .focusOff:
-            break
-        }
-    }
-
     private func isWithinWakeWindow(_ date: Date) -> Bool {
         let hour = Calendar.current.component(.hour, from: date)
         return hour >= configuration.wakeWindowStartHour && hour < configuration.wakeWindowEndHour
@@ -222,4 +195,3 @@ public actor CorroborationEngine {
         return String(decoding: data, as: UTF8.self)
     }
 }
-

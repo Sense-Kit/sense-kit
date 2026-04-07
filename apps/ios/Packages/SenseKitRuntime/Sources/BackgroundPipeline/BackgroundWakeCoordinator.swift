@@ -41,37 +41,57 @@ public actor BackgroundWakeCoordinator {
         var results: [ProcessingResult] = []
 
         for evaluation in evaluations {
-            let state = try await store.loadRuntimeState()
-            let snapshot = await snapshotEnricher.buildSnapshot(at: clock.now(), state: state)
-            let policy = policyEngine.decide(event: evaluation.event, snapshot: snapshot)
-            let envelope = SenseKitEventEnvelope(
-                deviceID: configuration.deviceID,
-                event: evaluation.event,
-                snapshot: snapshot,
-                policy: policy,
-                delivery: DeliveryMetadata(attempt: 1, queuedAt: clock.now())
-            )
-            let queued = QueuedWebhook(eventType: evaluation.event.eventType, envelope: envelope, queuedAt: clock.now())
-            try await store.enqueue(queued)
-            try await store.appendAuditEntry(
-                AuditLogEntry(
-                    createdAt: clock.now(),
-                    eventType: evaluation.event.eventType.rawValue,
-                    destination: configuration.openClaw?.endpointURL.absoluteString ?? "unconfigured",
-                    status: .queued,
-                    payloadSummary: "\(evaluation.event.eventType.rawValue) confidence=\(evaluation.score)",
-                    retryCount: 0
+            results.append(
+                try await process(
+                    event: evaluation.event,
+                    configuration: configuration,
+                    payloadSummary: "\(evaluation.event.eventType.rawValue) confidence=\(evaluation.score)"
                 )
             )
-
-            if let openClaw = configuration.openClaw {
-                try await attemptImmediateDelivery(item: queued, configuration: openClaw)
-            }
-
-            results.append(ProcessingResult(event: evaluation.event, queuedWebhookID: queued.id))
         }
 
         return results
+    }
+
+    @discardableResult
+    public func sendTestEvent(_ eventType: ContextEventType) async throws -> ProcessingResult {
+        let configuration = try await settingsStore.load()
+        let eventConfiguration = EventCatalog.configurations[eventType] ?? EventConfiguration(
+            eventType: eventType,
+            threshold: 1.0,
+            cooldownSec: 0,
+            supportSignalKeys: [],
+            modeHint: .normal
+        )
+
+        var state = try await store.loadRuntimeState()
+        RuntimeStateReducer.apply(eventType, at: clock.now(), to: &state)
+        try await store.saveRuntimeState(state)
+
+        let event = ContextEvent(
+            eventType: eventType,
+            occurredAt: clock.now(),
+            confidence: 1.0,
+            reasons: ["manual.test_button"],
+            modeHint: eventConfiguration.modeHint,
+            cooldownSec: eventConfiguration.cooldownSec,
+            dedupeKey: "\(configuration.deviceID):\(eventType.rawValue):manual:\(UUID().uuidString)"
+        )
+
+        try await store.appendDebugEntry(
+            DebugTimelineEntry(
+                createdAt: clock.now(),
+                category: .event,
+                message: "Manual test event \(eventType.rawValue)",
+                payload: try payloadString(event)
+            )
+        )
+
+        return try await process(
+            event: event,
+            configuration: configuration,
+            payloadSummary: "\(event.eventType.rawValue) confidence=1.0 source=manual_test"
+        )
     }
 
     public func drainQueue(limit: Int = 10) async throws {
@@ -119,10 +139,49 @@ public actor BackgroundWakeCoordinator {
         }
     }
 
+    private func process(
+        event: ContextEvent,
+        configuration: RuntimeConfiguration,
+        payloadSummary: String
+    ) async throws -> ProcessingResult {
+        let state = try await store.loadRuntimeState()
+        let snapshot = await snapshotEnricher.buildSnapshot(at: clock.now(), state: state)
+        let policy = policyEngine.decide(event: event, snapshot: snapshot)
+        let envelope = SenseKitEventEnvelope(
+            deviceID: configuration.deviceID,
+            event: event,
+            snapshot: snapshot,
+            policy: policy,
+            delivery: DeliveryMetadata(attempt: 1, queuedAt: clock.now())
+        )
+        let queued = QueuedWebhook(eventType: event.eventType, envelope: envelope, queuedAt: clock.now())
+        try await store.enqueue(queued)
+        try await store.appendAuditEntry(
+            AuditLogEntry(
+                createdAt: clock.now(),
+                eventType: event.eventType.rawValue,
+                destination: configuration.openClaw?.endpointURL.absoluteString ?? "unconfigured",
+                status: .queued,
+                payloadSummary: payloadSummary,
+                retryCount: 0
+            )
+        )
+
+        if let openClaw = configuration.openClaw {
+            try await attemptImmediateDelivery(item: queued, configuration: openClaw)
+        }
+
+        return ProcessingResult(event: event, queuedWebhookID: queued.id)
+    }
+
+    private func payloadString<T: Encodable>(_ value: T) throws -> String {
+        let data = try JSONCoding.encoder.encode(value)
+        return String(decoding: data, as: UTF8.self)
+    }
+
     private func nextRetryDate(attempt: Int, from date: Date) -> Date {
         let offsets: [TimeInterval] = [0, 5, 30, 300, 1_800, 7_200, 43_200]
         let index = min(attempt, offsets.count - 1)
         return date.addingTimeInterval(offsets[index])
     }
 }
-
