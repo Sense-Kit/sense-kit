@@ -1,6 +1,27 @@
 import Foundation
 import SenseKitRuntime
 
+public struct PlaceSearchSuggestion: Equatable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let subtitle: String
+    public let query: String
+
+    public init(id: String, title: String, subtitle: String, query: String) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.query = query
+    }
+
+    public var displayText: String {
+        if subtitle.isEmpty {
+            return title
+        }
+        return "\(title), \(subtitle)"
+    }
+}
+
 public struct SenseKitLoadedState: Sendable {
     public let configuration: RuntimeConfiguration
     public let wakeCollectorStatus: WakeCollectorStatus
@@ -28,7 +49,9 @@ public protocol SenseKitAppService: Sendable {
     func saveConfiguration(_ configuration: RuntimeConfiguration) async throws
     func sendTestEvent(_ eventType: ContextEventType) async throws
     func captureCurrentRegion(identifier: String, radiusMeters: Double) async throws -> RegionConfiguration
+    func suggestRegions(query: String) async throws -> [PlaceSearchSuggestion]
     func searchRegion(query: String, identifier: String, radiusMeters: Double) async throws -> RegionConfiguration
+    func searchRegion(suggestion: PlaceSearchSuggestion, identifier: String, radiusMeters: Double) async throws -> RegionConfiguration
 }
 
 public actor LiveSenseKitAppService: SenseKitAppService {
@@ -119,6 +142,25 @@ public actor LiveSenseKitAppService: SenseKitAppService {
                 category: .evaluation,
                 message: "Resolved address for \(identifier)",
                 payload: "\(query) -> \(region.latitude),\(region.longitude) radius=\(region.radiusMeters)"
+            )
+        )
+        return region
+    }
+
+    public func suggestRegions(query: String) async throws -> [PlaceSearchSuggestion] {
+        let resolver = await ensureAddressSearchResolver()
+        return try await resolver.suggest(query: query)
+    }
+
+    public func searchRegion(suggestion: PlaceSearchSuggestion, identifier: String, radiusMeters: Double) async throws -> RegionConfiguration {
+        let resolver = await ensureAddressSearchResolver()
+        let region = try await resolver.searchRegion(suggestion: suggestion, identifier: identifier, radiusMeters: radiusMeters)
+        try await store.appendDebugEntry(
+            DebugTimelineEntry(
+                createdAt: clock.now(),
+                category: .evaluation,
+                message: "Resolved suggestion for \(identifier)",
+                payload: "\(suggestion.displayText) -> \(region.latitude),\(region.longitude) radius=\(region.radiusMeters)"
             )
         )
         return region

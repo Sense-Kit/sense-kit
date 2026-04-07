@@ -545,6 +545,145 @@ struct SenseKitAppModelTests {
     }
 
     @Test
+    func refreshPlaceSearchSuggestionsStoresSuggestionsFromService() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(configuration: RuntimeConfiguration(deviceID: "device-1")),
+            nextSuggestions: [
+                PlaceSearchSuggestion(
+                    id: "1",
+                    title: "GymOne",
+                    subtitle: "Zurich",
+                    query: "GymOne Zurich"
+                ),
+                PlaceSearchSuggestion(
+                    id: "2",
+                    title: "David Gym",
+                    subtitle: "Oerlikon",
+                    query: "David Gym Oerlikon"
+                )
+            ]
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        await model.refreshPlaceSearchSuggestions(query: "gym")
+
+        let suggestionRequests = await service.suggestionRequests
+        #expect(suggestionRequests == ["gym"])
+        #expect(model.placeSearchSuggestions.count == 2)
+        #expect(model.placeSearchSuggestions.first?.title == "GymOne")
+        #expect(model.placeSearchSuggestions.first?.subtitle == "Zurich")
+    }
+
+    @Test
+    func refreshPlaceSearchSuggestionsTracksLoadingStateWhileRequestRuns() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(configuration: RuntimeConfiguration(deviceID: "device-1")),
+            nextSuggestions: [
+                PlaceSearchSuggestion(
+                    id: "1",
+                    title: "GymOne",
+                    subtitle: "Zurich",
+                    query: "GymOne Zurich"
+                )
+            ],
+            suggestionDelayNanoseconds: 100_000_000
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        let task = Task { await model.refreshPlaceSearchSuggestions(query: "gym") }
+        await Task.yield()
+
+        #expect(model.isLoadingPlaceSearchSuggestions)
+
+        await task.value
+
+        #expect(!model.isLoadingPlaceSearchSuggestions)
+        #expect(model.placeSearchSuggestions.count == 1)
+    }
+
+    @Test
+    func addFixedPlaceFromSuggestionUsesSuggestionResolution() async throws {
+        let suggestion = PlaceSearchSuggestion(
+            id: "gym-suggestion",
+            title: "GymOne",
+            subtitle: "Zurich",
+            query: "GymOne Zurich"
+        )
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(configuration: RuntimeConfiguration(deviceID: "device-1")),
+            nextSuggestionRegion: RegionConfiguration(
+                identifier: "placeholder",
+                latitude: 47.41000,
+                longitude: 8.55000,
+                radiusMeters: 180
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        let added = await model.addFixedPlaceFromSuggestion(
+            name: "Gym",
+            suggestion: suggestion,
+            radiusMeters: 180
+        )
+
+        let suggestionResolutionRequests = await service.suggestionResolutionRequests
+        let searchRequests = await service.searchRequests
+        let savedConfiguration = await service.savedConfigurations.last
+        #expect(added)
+        #expect(suggestionResolutionRequests.count == 1)
+        #expect(suggestionResolutionRequests.first?.0 == suggestion.id)
+        #expect(suggestionResolutionRequests.first?.1.hasPrefix("place-gym") == true)
+        #expect(searchRequests.isEmpty)
+        #expect(savedConfiguration?.fixedPlaces.first?.displayName == "Gym")
+        #expect(savedConfiguration?.fixedPlaces.first?.latitude == 47.41000)
+        #expect(model.feedback?.message == "Gym added and saved.")
+    }
+
+    @Test
+    func refreshPlaceSearchSuggestionsClearsSuggestionsForShortQuery() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(configuration: RuntimeConfiguration(deviceID: "device-1")),
+            nextSuggestions: [
+                PlaceSearchSuggestion(
+                    id: "1",
+                    title: "GymOne",
+                    subtitle: "Zurich",
+                    query: "GymOne Zurich"
+                )
+            ]
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        await model.refreshPlaceSearchSuggestions(query: "gym")
+        #expect(model.placeSearchSuggestions.count == 1)
+
+        await model.refreshPlaceSearchSuggestions(query: "g")
+
+        let suggestionRequests = await service.suggestionRequests
+        #expect(suggestionRequests == ["gym"])
+        #expect(model.placeSearchSuggestions.isEmpty)
+    }
+
+    @Test
+    func refreshPlaceSearchSuggestionsMarksEmptyStateForCurrentQuery() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(configuration: RuntimeConfiguration(deviceID: "device-1"))
+        )
+        let model = SenseKitAppModel(service: service)
+
+        await model.load()
+        await model.refreshPlaceSearchSuggestions(query: "unknown")
+
+        #expect(!model.isLoadingPlaceSearchSuggestions)
+        #expect(model.placeSearchSuggestions.isEmpty)
+        #expect(model.placeSearchSuggestionsQuery == "unknown")
+    }
+
+    @Test
     func removeFixedPlacePersistsUpdatedConfiguration() async throws {
         let service = FakeSenseKitAppService(
             initialState: SenseKitLoadedState(
@@ -745,17 +884,28 @@ private actor FakeSenseKitAppService: SenseKitAppService {
     private(set) var sentTestEvents: [ContextEventType] = []
     private let currentRegionResult: RegionConfiguration?
     private let searchRegionResult: RegionConfiguration?
+    private let suggestionRegionResult: RegionConfiguration?
+    private let suggestionsResult: [PlaceSearchSuggestion]
+    private let suggestionDelayNanoseconds: UInt64
     private(set) var captureRequests: [(String, Double)] = []
     private(set) var searchRequests: [(String, String, Double)] = []
+    private(set) var suggestionRequests: [String] = []
+    private(set) var suggestionResolutionRequests: [(String, String, Double)] = []
 
     init(
         initialState: SenseKitLoadedState,
         nextCurrentRegion: RegionConfiguration? = nil,
-        nextSearchRegion: RegionConfiguration? = nil
+        nextSearchRegion: RegionConfiguration? = nil,
+        nextSuggestionRegion: RegionConfiguration? = nil,
+        nextSuggestions: [PlaceSearchSuggestion] = [],
+        suggestionDelayNanoseconds: UInt64 = 0
     ) {
         self.currentState = initialState
         self.currentRegionResult = nextCurrentRegion
         self.searchRegionResult = nextSearchRegion
+        self.suggestionRegionResult = nextSuggestionRegion
+        self.suggestionsResult = nextSuggestions
+        self.suggestionDelayNanoseconds = suggestionDelayNanoseconds
     }
 
     func loadState() async throws -> SenseKitLoadedState {
@@ -789,6 +939,22 @@ private actor FakeSenseKitAppService: SenseKitAppService {
             throw NSError(domain: "FakeSenseKitAppService", code: 2)
         }
         return searchRegionResult
+    }
+
+    func suggestRegions(query: String) async throws -> [PlaceSearchSuggestion] {
+        suggestionRequests.append(query)
+        if suggestionDelayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: suggestionDelayNanoseconds)
+        }
+        return suggestionsResult
+    }
+
+    func searchRegion(suggestion: PlaceSearchSuggestion, identifier: String, radiusMeters: Double) async throws -> RegionConfiguration {
+        suggestionResolutionRequests.append((suggestion.id, identifier, radiusMeters))
+        guard let suggestionRegionResult else {
+            throw NSError(domain: "FakeSenseKitAppService", code: 3)
+        }
+        return suggestionRegionResult
     }
 
     func setNextLoadedState(_ state: SenseKitLoadedState) {

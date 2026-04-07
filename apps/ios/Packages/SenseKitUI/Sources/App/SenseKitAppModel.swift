@@ -36,6 +36,9 @@ public final class SenseKitAppModel {
     public var homeRadiusMeters: Double
     public var workRadiusMeters: Double
     public var selectedTestEvent: ContextEventType
+    public var placeSearchSuggestions: [PlaceSearchSuggestion]
+    public var placeSearchSuggestionsQuery: String?
+    public var isLoadingPlaceSearchSuggestions: Bool
     public var isBusy: Bool
     public var busyAction: SettingsBusyAction?
     public var errorMessage: String?
@@ -45,6 +48,7 @@ public final class SenseKitAppModel {
     private let service: any SenseKitAppService
     private var configuration: RuntimeConfiguration
     private var hasLoaded = false
+    private var placeSearchSuggestionRequestID = 0
 
     public init(
         service: any SenseKitAppService,
@@ -66,6 +70,9 @@ public final class SenseKitAppModel {
         homeRadiusMeters: Double = 150,
         workRadiusMeters: Double = 150,
         selectedTestEvent: ContextEventType = .drivingStarted,
+        placeSearchSuggestions: [PlaceSearchSuggestion] = [],
+        placeSearchSuggestionsQuery: String? = nil,
+        isLoadingPlaceSearchSuggestions: Bool = false,
         isBusy: Bool = false,
         busyAction: SettingsBusyAction? = nil,
         errorMessage: String? = nil,
@@ -92,6 +99,9 @@ public final class SenseKitAppModel {
         self.homeRadiusMeters = homeRadiusMeters
         self.workRadiusMeters = workRadiusMeters
         self.selectedTestEvent = selectedTestEvent
+        self.placeSearchSuggestions = placeSearchSuggestions
+        self.placeSearchSuggestionsQuery = placeSearchSuggestionsQuery
+        self.isLoadingPlaceSearchSuggestions = isLoadingPlaceSearchSuggestions
         self.isBusy = isBusy
         self.busyAction = busyAction
         self.errorMessage = errorMessage
@@ -338,13 +348,19 @@ public final class SenseKitAppModel {
             return false
         }
 
-        return await addFixedPlace(
+        let added = await addFixedPlace(
             name: name,
             radiusMeters: radiusMeters,
             action: .searchingFixedPlace
         ) { identifier in
             try await self.service.searchRegion(query: trimmedQuery, identifier: identifier, radiusMeters: radiusMeters)
         }
+
+        if added {
+            clearPlaceSearchSuggestions()
+        }
+
+        return added
     }
 
     public func removeFixedPlace(identifier: String) async {
@@ -356,6 +372,60 @@ public final class SenseKitAppModel {
         await persistRuntimeConfigurationDraft(
             successMessage: "\(existingPlace.displayName ?? existingPlace.identifier) removed."
         )
+    }
+
+    public func refreshPlaceSearchSuggestions(query: String) async {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedQuery.count >= 2 else {
+            clearPlaceSearchSuggestions()
+            return
+        }
+
+        placeSearchSuggestionRequestID += 1
+        let requestID = placeSearchSuggestionRequestID
+        isLoadingPlaceSearchSuggestions = true
+        placeSearchSuggestionsQuery = trimmedQuery
+
+        do {
+            let suggestions = try await service.suggestRegions(query: trimmedQuery)
+            guard requestID == placeSearchSuggestionRequestID else { return }
+            placeSearchSuggestions = suggestions
+            placeSearchSuggestionsQuery = trimmedQuery
+        } catch {
+            guard requestID == placeSearchSuggestionRequestID else { return }
+            placeSearchSuggestions = []
+            placeSearchSuggestionsQuery = trimmedQuery
+        }
+
+        isLoadingPlaceSearchSuggestions = false
+    }
+
+    @discardableResult
+    public func addFixedPlaceFromSuggestion(
+        name: String,
+        suggestion: PlaceSearchSuggestion,
+        radiusMeters: Double
+    ) async -> Bool {
+        let added = await addFixedPlace(
+            name: name,
+            radiusMeters: radiusMeters,
+            action: .searchingFixedPlace
+        ) { identifier in
+            try await self.service.searchRegion(suggestion: suggestion, identifier: identifier, radiusMeters: radiusMeters)
+        }
+
+        if added {
+            clearPlaceSearchSuggestions()
+        }
+
+        return added
+    }
+
+    public func clearPlaceSearchSuggestions() {
+        placeSearchSuggestionRequestID += 1
+        placeSearchSuggestions = []
+        placeSearchSuggestionsQuery = nil
+        isLoadingPlaceSearchSuggestions = false
     }
 
     public func persistRuntimeDraftOnBackground() async {
@@ -891,7 +961,28 @@ private actor PreviewSenseKitAppService: SenseKitAppService {
         RegionConfiguration(identifier: identifier, latitude: 47.3769, longitude: 8.5417, radiusMeters: radiusMeters)
     }
 
+    func suggestRegions(query: String) async throws -> [PlaceSearchSuggestion] {
+        [
+            PlaceSearchSuggestion(
+                id: "preview-\(query)",
+                title: "Preview Place",
+                subtitle: "Zurich",
+                query: query
+            )
+        ]
+    }
+
     func searchRegion(query: String, identifier: String, radiusMeters: Double) async throws -> RegionConfiguration {
         RegionConfiguration(identifier: identifier, latitude: 47.3769, longitude: 8.5417, radiusMeters: radiusMeters)
+    }
+
+    func searchRegion(suggestion: PlaceSearchSuggestion, identifier: String, radiusMeters: Double) async throws -> RegionConfiguration {
+        RegionConfiguration(
+            identifier: identifier,
+            displayName: suggestion.displayText,
+            latitude: 47.3769,
+            longitude: 8.5417,
+            radiusMeters: radiusMeters
+        )
     }
 }

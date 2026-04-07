@@ -12,6 +12,7 @@ public struct FeaturePickerView: View {
     @State private var draftPlaceName = ""
     @State private var draftPlaceSearchQuery = ""
     @State private var draftPlaceRadiusMeters = 150.0
+    @State private var selectedPlaceSuggestion: PlaceSearchSuggestion?
     @State private var showsMotionDetails = false
     @State private var showsPlaceDetails = false
     @State private var showsPlaceSetup = false
@@ -55,6 +56,9 @@ public struct FeaturePickerView: View {
         .scrollDismissesKeyboard(.interactively)
         .task {
             syncDraftFromModelIfNeeded()
+        }
+        .task(id: draftPlaceSearchQuery) {
+            await refreshDraftPlaceSuggestions()
         }
     }
 
@@ -401,6 +405,30 @@ public struct FeaturePickerView: View {
                                                 }
                                             }
 
+                                        if showsActivePlaceSuggestionSearch {
+                                            HStack(spacing: 10) {
+                                                ProgressView()
+                                                    .controlSize(.small)
+                                                Text("Searching places…")
+                                                    .font(.footnote)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        } else if !model.placeSearchSuggestions.isEmpty {
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                Text("Suggestions")
+                                                    .font(.caption.weight(.semibold))
+                                                    .foregroundStyle(.secondary)
+
+                                                ForEach(model.placeSearchSuggestions, id: \.id) { suggestion in
+                                                    placeSuggestionRow(suggestion)
+                                                }
+                                            }
+                                        } else if showsEmptyPlaceSuggestionState {
+                                            Text("No places matched yet. Try a more specific street, business, or landmark.")
+                                                .font(.footnote)
+                                                .foregroundStyle(.secondary)
+                                        }
+
                                         Button {
                                             dismissInput()
                                             Task {
@@ -616,6 +644,42 @@ public struct FeaturePickerView: View {
         )
     }
 
+    @ViewBuilder
+    private func placeSuggestionRow(_ suggestion: PlaceSearchSuggestion) -> some View {
+        Button {
+            selectedPlaceSuggestion = suggestion
+            draftPlaceSearchQuery = suggestion.displayText
+            model.clearPlaceSearchSuggestions()
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(suggestion.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    if !suggestion.subtitle.isEmpty {
+                        Text(suggestion.subtitle)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer(minLength: 12)
+
+                Image(systemName: "arrow.up.left")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.primary.opacity(0.05))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     private var savedSelectionsExist: Bool {
         model.wakeSelectionEnabled
             || model.drivingSelectionEnabled
@@ -735,11 +799,20 @@ public struct FeaturePickerView: View {
     }
 
     private func addFixedPlaceFromSearch() async {
-        let added = await model.addFixedPlaceFromAddress(
-            name: draftPlaceName,
-            query: draftPlaceSearchQuery,
-            radiusMeters: draftPlaceRadiusMeters
-        )
+        let added: Bool
+        if let selectedPlaceSuggestion, matchesCurrentQuery(selectedPlaceSuggestion) {
+            added = await model.addFixedPlaceFromSuggestion(
+                name: draftPlaceName,
+                suggestion: selectedPlaceSuggestion,
+                radiusMeters: draftPlaceRadiusMeters
+            )
+        } else {
+            added = await model.addFixedPlaceFromAddress(
+                name: draftPlaceName,
+                query: draftPlaceSearchQuery,
+                radiusMeters: draftPlaceRadiusMeters
+            )
+        }
 
         if added {
             clearPlaceDrafts()
@@ -751,6 +824,8 @@ public struct FeaturePickerView: View {
         draftPlaceName = ""
         draftPlaceSearchQuery = ""
         draftPlaceRadiusMeters = 150
+        selectedPlaceSuggestion = nil
+        model.clearPlaceSearchSuggestions()
     }
 
     private func placeSummary(_ place: RegionConfiguration) -> String {
@@ -761,6 +836,36 @@ public struct FeaturePickerView: View {
             place.longitude
         )
         return "\(coordinateText) · \(Int(place.radiusMeters)) m"
+    }
+
+    private func refreshDraftPlaceSuggestions() async {
+        let trimmedQuery = draftPlaceSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let selectedPlaceSuggestion, matchesCurrentQuery(selectedPlaceSuggestion) {
+            return
+        }
+
+        selectedPlaceSuggestion = nil
+        await model.refreshPlaceSearchSuggestions(query: trimmedQuery)
+    }
+
+    private func matchesCurrentQuery(_ suggestion: PlaceSearchSuggestion) -> Bool {
+        let trimmedQuery = draftPlaceSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedQuery == suggestion.displayText || trimmedQuery == suggestion.query
+    }
+
+    private var showsActivePlaceSuggestionSearch: Bool {
+        let trimmedQuery = draftPlaceSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedQuery.count >= 2
+            && model.isLoadingPlaceSearchSuggestions
+            && model.placeSearchSuggestionsQuery == trimmedQuery
+    }
+
+    private var showsEmptyPlaceSuggestionState: Bool {
+        let trimmedQuery = draftPlaceSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedQuery.count >= 2
+            && !model.isLoadingPlaceSearchSuggestions
+            && model.placeSearchSuggestions.isEmpty
+            && model.placeSearchSuggestionsQuery == trimmedQuery
     }
 
     @ViewBuilder
