@@ -4,16 +4,16 @@
 
 SenseKit is an open-source iPhone context runtime for AI agents.
 
-It listens to passive on-device signals like motion, location, workouts, power state, and lightweight calendar context, turns those signals into deterministic events, and delivers signed HTTPS payloads to OpenClaw.
+It listens to passive on-device signals like motion, location, workouts, and power state, packages those observations as raw signal batches, and delivers signed HTTPS payloads to OpenClaw.
 
 The project exists to solve one practical problem: an agent cannot act intelligently around the real world if the user has to build a pile of Shortcuts automations before anything works. SenseKit aims to be useful right after install and permission approval.
 
 ## Why SenseKit
 
 - `Passive-first`: useful events should be possible without manual Shortcuts setup.
-- `Deterministic`: the runtime uses explicit rules, weights, and thresholds instead of opaque ML guesses.
-- `Local-first`: raw sensor data stays on the phone by default.
-- `Policy-aware`: each outbound event includes the safety context OpenClaw needs to react responsibly.
+- `Agent-first`: the phone ships observations and the agent decides what they mean.
+- `Raw-by-default`: the outbound payload is a signal batch, not a pre-chewed event plus summary snapshot.
+- `Signed delivery`: every outbound payload is HMAC-signed before it leaves the phone.
 - `OpenClaw-first`: the primary integration path is signed outbound delivery, not hosting a server on the phone.
 
 ## Current status
@@ -22,10 +22,8 @@ SenseKit is early, opinionated, and real.
 
 What already exists in this repository:
 
-- a deterministic corroboration engine for passive events
-- a Swift runtime package with Motion, Location, HealthKit, power, and calendar collectors
-- SQLite-backed runtime state, queueing, and audit logging
-- signed webhook delivery for OpenClaw
+- a Swift runtime package with Motion, Location, HealthKit, and power collectors
+- raw-signal queueing, signed webhook delivery, and audit logging
 - a SwiftUI app shell with onboarding, settings, audit log, and debug timeline scaffolding
 - a separate bench harness target for field testing
 - shared JSON schemas and TypeScript validation helpers
@@ -49,28 +47,22 @@ If you are evaluating the project, start with:
 
 ```mermaid
 flowchart LR
-    A["On-device collectors<br/>Motion, location, HealthKit,<br/>power, calendar"] --> B["Deterministic corroboration engine"]
-    B --> C["Context event<br/>confidence, reasons, policy"]
-    C --> D["Signed outbound queue"]
-    D --> E["OpenClaw webhook"]
+    A["On-device collectors<br/>Motion, location,<br/>HealthKit, power"] --> B["Raw signal batch"]
+    B --> C["Signed outbound queue"]
+    C --> D["OpenClaw webhook"]
 ```
 
-SenseKit is a runtime, not a data exhaust pipeline. The phone keeps the raw sensor layer local and only sends small, structured events once the runtime is confident something meaningful happened.
+SenseKit is now intentionally closer to a data transport runtime than an event engine. The phone captures raw collector observations, keeps local audit/debug traces, and sends signed signal batches so the agent can do the interpretation.
 
 ## What leaves the phone
 
-SenseKit does not send a raw dump of everything the device sees.
-
 | Sent to OpenClaw | Stays local by default |
 | --- | --- |
-| One event at a time, such as `motion_activity_observed` or `arrived_home` | Exact GPS coordinates |
-| Event timestamp | Raw motion history |
-| Confidence score | Raw HealthKit values |
-| Short reason codes like `motion.primary.walking` | Calendar titles and attendees |
-| A small snapshot with coarse state | Local debug traces |
-| A policy block describing safe response modes | Tokens and secrets |
+| Raw signal batches such as `motion.activity_observed`, `location.region_state_changed`, or `health.workout_sample_observed` | Calendar titles and attendees |
+| Signal payload fields like motion flags, speed, battery state, workout metadata, and optional coordinates | Local debug traces |
+| Signal timestamps and collector/source metadata | Tokens and secrets |
 
-In the current bench app, motion is forwarded as coarse activity events such as `walking`, `running`, `stationary`, or `automotive`, and place transitions are forwarded as events such as `arrived_home`.
+In the current bench app, place coordinates are still gated by the existing place sharing setting. Everything else in the primary outbound path is now built around raw signal batches rather than normalized events.
 
 ## Repository guide
 

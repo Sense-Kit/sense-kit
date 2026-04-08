@@ -37,4 +37,4 @@ Focus on three things:
 
 ## Suggested App Review notes
 
-SenseKit is a closed beta for passive context delivery to a user-configured OpenClaw endpoint. The main beta flows are Motion & Fitness detection and background location arrivals/departures. The app sends structured context events, not raw sensor streams. Exact GPS traces, raw motion history, calendar titles, attendee lists, and raw Health data are not sent. Workout and calendar integrations are being prepared, but this beta is centered on motion and location validation.
+SenseKit is a closed beta for passive signal delivery to a user-configured OpenClaw endpoint. The main beta flows are Motion & Fitness observations, background location arrivals and departures, power state changes, and workout sample delivery. The app sends signed raw signal batches instead of pre-decided events. Calendar titles, attendee lists, bearer tokens, and HMAC secrets are not sent. Exact coordinates are only sent when the user explicitly enables precise place sharing.
