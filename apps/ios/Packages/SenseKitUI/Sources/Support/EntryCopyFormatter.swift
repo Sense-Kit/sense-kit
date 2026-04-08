@@ -3,7 +3,7 @@ import SenseKitRuntime
 
 enum EntryCopyFormatter {
     static func auditEntry(_ entry: AuditLogEntry) -> String {
-        [
+        var lines = [
             "type: audit",
             "created_at: \(timestamp(entry.createdAt))",
             "event_type: \(entry.eventType)",
@@ -11,7 +11,13 @@ enum EntryCopyFormatter {
             "destination: \(entry.destination)",
             "payload_summary: \(entry.payloadSummary)",
             "retry_count: \(entry.retryCount)"
-        ].joined(separator: "\n")
+        ]
+
+        if let payload = entry.payload, !payload.isEmpty {
+            lines.append("payload: \(payload)")
+        }
+
+        return lines.joined(separator: "\n")
     }
 
     static func timelineEntry(_ entry: DebugTimelineEntry) -> String {

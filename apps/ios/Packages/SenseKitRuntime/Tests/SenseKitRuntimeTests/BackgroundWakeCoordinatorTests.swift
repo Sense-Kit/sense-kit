@@ -46,6 +46,17 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
         XCTAssertEqual(auditEntries[0].status, .queued)
         XCTAssertEqual(auditEntries[1].status, .delivered)
         XCTAssertEqual(auditEntries[1].eventType, "manual.driving_signals")
+        let queuedAuditBatch = try JSONCoding.decoder.decode(
+            SenseKitSignalBatch.self,
+            from: Data(try XCTUnwrap(auditEntries[0].payload).utf8)
+        )
+        XCTAssertEqual(queuedAuditBatch.batchID, result.signalBatch.batchID)
+        XCTAssertEqual(queuedAuditBatch.signals.count, 2)
+        let deliveredAuditBatch = try JSONCoding.decoder.decode(
+            SenseKitSignalBatch.self,
+            from: Data(try XCTUnwrap(auditEntries[1].payload).utf8)
+        )
+        XCTAssertEqual(deliveredAuditBatch.batchID, result.signalBatch.batchID)
 
         let request = await MockURLProtocol.lastRequest()
         let deliveredBody = try XCTUnwrap(requestBody(from: try XCTUnwrap(request)))
@@ -246,6 +257,11 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
         XCTAssertEqual(auditEntries[0].status, .queued)
         XCTAssertEqual(auditEntries[1].status, .failed)
         XCTAssertTrue(auditEntries[1].payloadSummary.contains("HTTP 502"))
+        let failedAuditBatch = try JSONCoding.decoder.decode(
+            SenseKitSignalBatch.self,
+            from: Data(try XCTUnwrap(auditEntries[1].payload).utf8)
+        )
+        XCTAssertEqual(failedAuditBatch.signals.count, 1)
 
         let queuedItems = await store.queuedItems()
         XCTAssertEqual(queuedItems.count, 1)

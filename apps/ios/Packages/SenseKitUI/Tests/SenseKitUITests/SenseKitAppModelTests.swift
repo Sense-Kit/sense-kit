@@ -31,6 +31,7 @@ struct SenseKitAppModelTests {
                     destination: "https://example.ts.net/hooks/sensekit",
                     status: .delivered,
                     payloadSummary: "HTTP 200",
+                    payload: #"{"batch_id":"batch-1"}"#,
                     retryCount: 0
                 )
             ]
@@ -274,6 +275,7 @@ struct SenseKitAppModelTests {
                     destination: "https://example.ts.net/hooks/sensekit",
                     status: .delivered,
                     payloadSummary: "HTTP 200",
+                    payload: #"{"batch_id":"batch-2"}"#,
                     retryCount: 0
                 )
             ]
@@ -362,6 +364,7 @@ struct SenseKitAppModelTests {
                     destination: "https://example.ts.net/hooks/sensekit",
                     status: .delivered,
                     payloadSummary: "HTTP 200",
+                    payload: #"{"batch_id":"batch-3"}"#,
                     retryCount: 0
                 )
             ]
@@ -808,6 +811,7 @@ struct SenseKitAppModelTests {
                         destination: "https://example.ts.net/hooks/sensekit",
                         status: .delivered,
                         payloadSummary: "HTTP 200",
+                        payload: #"{"batch_id":"batch-4"}"#,
                         retryCount: 0
                     ),
                     AuditLogEntry(
@@ -816,6 +820,7 @@ struct SenseKitAppModelTests {
                         destination: "https://example.ts.net/hooks/sensekit",
                         status: .delivered,
                         payloadSummary: "HTTP 200",
+                        payload: #"{"batch_id":"batch-5"}"#,
                         retryCount: 0
                     )
                 ]
@@ -855,6 +860,7 @@ struct EntryCopyFormatterTests {
             destination: "https://example.ts.net/hooks/sensekit",
             status: .delivered,
             payloadSummary: "HTTP 200",
+            payload: #"{"batch_id":"batch-6","signals":[]}"#,
             retryCount: 0
         )
 
@@ -865,6 +871,7 @@ struct EntryCopyFormatterTests {
         #expect(text.contains("status: delivered"))
         #expect(text.contains("destination: https://example.ts.net/hooks/sensekit"))
         #expect(text.contains("payload_summary: HTTP 200"))
+        #expect(text.contains(#"payload: {"batch_id":"batch-6","signals":[]}"#))
     }
 
     @Test
@@ -893,6 +900,58 @@ struct EntryCopyFormatterTests {
         )
 
         #expect(TimelineServiceFilter.inferredService(for: entry) == .location)
+    }
+}
+
+struct AuditLogInspectionStateTests {
+    @Test
+    func keepsVisibleAuditSnapshotFrozenWhileInspectingPayload() {
+        var inspectionState = AuditLogInspectionState()
+        let firstEntry = AuditLogEntry(
+            id: "entry-1",
+            createdAt: Date(timeIntervalSince1970: 1_775_520_000),
+            eventType: "manual.driving_signals",
+            destination: "https://example.ts.net/hooks/sensekit",
+            status: .delivered,
+            payloadSummary: "HTTP 200",
+            payload: #"{"batch_id":"batch-1"}"#,
+            retryCount: 0
+        )
+        let secondEntry = AuditLogEntry(
+            id: "entry-2",
+            createdAt: Date(timeIntervalSince1970: 1_775_520_100),
+            eventType: "manual.wake_signals",
+            destination: "https://example.ts.net/hooks/sensekit",
+            status: .delivered,
+            payloadSummary: "HTTP 200",
+            payload: #"{"batch_id":"batch-2"}"#,
+            retryCount: 0
+        )
+
+        inspectionState.setPayloadExpanded(
+            true,
+            for: firstEntry.id,
+            liveEntries: [firstEntry],
+            liveAvailableEventTypes: [firstEntry.eventType]
+        )
+
+        #expect(inspectionState.isInspectingPayload)
+        #expect(inspectionState.displayedEntries(liveEntries: [secondEntry, firstEntry]).map(\.id) == ["entry-1"])
+        #expect(
+            inspectionState.displayedAvailableEventTypes(
+                liveAvailableEventTypes: [secondEntry.eventType, firstEntry.eventType]
+            ) == [firstEntry.eventType]
+        )
+
+        inspectionState.setPayloadExpanded(
+            false,
+            for: firstEntry.id,
+            liveEntries: [secondEntry, firstEntry],
+            liveAvailableEventTypes: [secondEntry.eventType, firstEntry.eventType]
+        )
+
+        #expect(!inspectionState.isInspectingPayload)
+        #expect(inspectionState.displayedEntries(liveEntries: [secondEntry, firstEntry]).map(\.id) == ["entry-2", "entry-1"])
     }
 }
 

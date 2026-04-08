@@ -305,6 +305,7 @@ public struct AuditLogEntry: Codable, Equatable, Sendable, Identifiable {
     public let destination: String
     public let status: AuditStatus
     public let payloadSummary: String
+    public let payload: String?
     public let retryCount: Int
 
     public init(
@@ -314,6 +315,7 @@ public struct AuditLogEntry: Codable, Equatable, Sendable, Identifiable {
         destination: String,
         status: AuditStatus,
         payloadSummary: String,
+        payload: String? = nil,
         retryCount: Int
     ) {
         self.id = id
@@ -322,6 +324,7 @@ public struct AuditLogEntry: Codable, Equatable, Sendable, Identifiable {
         self.destination = destination
         self.status = status
         self.payloadSummary = payloadSummary
+        self.payload = payload
         self.retryCount = retryCount
     }
 }

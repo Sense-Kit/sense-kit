@@ -133,8 +133,8 @@ public actor SQLiteRuntimeStore: RuntimeStore {
 
     public func appendAuditEntry(_ entry: AuditLogEntry) async throws {
         let sql = """
-        INSERT INTO audit_log (id, created_at, event_type, destination, status, payload_summary, retry_count)
-        VALUES (?, ?, ?, ?, ?, ?, ?);
+        INSERT INTO audit_log (id, created_at, event_type, destination, status, payload_summary, payload, retry_count)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
         """
         try withStatement(sql) { statement in
             bindText(entry.id, at: 1, in: statement)
@@ -143,7 +143,8 @@ public actor SQLiteRuntimeStore: RuntimeStore {
             bindText(entry.destination, at: 4, in: statement)
             bindText(entry.status.rawValue, at: 5, in: statement)
             bindText(entry.payloadSummary, at: 6, in: statement)
-            sqlite3_bind_int(statement, 7, Int32(entry.retryCount))
+            bindText(entry.payload, at: 7, in: statement)
+            sqlite3_bind_int(statement, 8, Int32(entry.retryCount))
             guard sqlite3_step(statement) == SQLITE_DONE else {
                 throw RuntimeStoreError.statementFailed(message: lastErrorMessage())
             }
@@ -233,7 +234,7 @@ public actor SQLiteRuntimeStore: RuntimeStore {
 
     public func auditEntries(limit: Int) async throws -> [AuditLogEntry] {
         let sql = """
-        SELECT id, created_at, event_type, destination, status, payload_summary, retry_count
+        SELECT id, created_at, event_type, destination, status, payload_summary, payload, retry_count
         FROM audit_log
         ORDER BY created_at DESC
         LIMIT ?;
@@ -249,7 +250,8 @@ public actor SQLiteRuntimeStore: RuntimeStore {
                     destination: stringValue(from: statement, column: 3) ?? "",
                     status: AuditStatus(rawValue: stringValue(from: statement, column: 4) ?? "") ?? .queued,
                     payloadSummary: stringValue(from: statement, column: 5) ?? "",
-                    retryCount: Int(sqlite3_column_int(statement, 6))
+                    payload: stringValue(from: statement, column: 6),
+                    retryCount: Int(sqlite3_column_int(statement, 7))
                 )
                 entries.append(entry)
             }
@@ -298,6 +300,7 @@ public actor SQLiteRuntimeStore: RuntimeStore {
                 destination TEXT NOT NULL,
                 status TEXT NOT NULL,
                 payload_summary TEXT NOT NULL,
+                payload TEXT,
                 retry_count INTEGER NOT NULL
             );
             """,
@@ -316,6 +319,34 @@ public actor SQLiteRuntimeStore: RuntimeStore {
             guard sqlite3_exec(database, sql, nil, nil, nil) == SQLITE_OK else {
                 throw RuntimeStoreError.statementFailed(message: String(cString: sqlite3_errmsg(database)))
             }
+        }
+
+        try ensureColumn(named: "payload", type: "TEXT", in: "audit_log", database: database)
+    }
+
+    private static func ensureColumn(
+        named columnName: String,
+        type: String,
+        in tableName: String,
+        database: OpaquePointer
+    ) throws {
+        let sql = "PRAGMA table_info(\(tableName));"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
+            throw RuntimeStoreError.statementFailed(message: String(cString: sqlite3_errmsg(database)))
+        }
+        defer { sqlite3_finalize(statement) }
+
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let rawName = sqlite3_column_text(statement, 1) else { continue }
+            if String(cString: rawName) == columnName {
+                return
+            }
+        }
+
+        let alterStatement = "ALTER TABLE \(tableName) ADD COLUMN \(columnName) \(type);"
+        guard sqlite3_exec(database, alterStatement, nil, nil, nil) == SQLITE_OK else {
+            throw RuntimeStoreError.statementFailed(message: String(cString: sqlite3_errmsg(database)))
         }
     }
 

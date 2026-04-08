@@ -449,6 +449,35 @@ public final class SenseKitAppModel {
                     destination: "https://gateway.example/hooks/sensekit",
                     status: .delivered,
                     payloadSummary: "HTTP 200",
+                    payload: """
+                    {
+                      "batch_id": "preview-batch",
+                      "device": {
+                        "device_id": "preview-device",
+                        "place_sharing_mode": "labels_only",
+                        "platform": "ios"
+                      },
+                      "schema_version": "sensekit.signal_batch.v1",
+                      "sent_at": "2026-04-08T17:20:00Z",
+                      "signals": [
+                        {
+                          "collector": "manual",
+                          "payload": {
+                            "confidence": "high",
+                            "primary_kind": "automotive"
+                          },
+                          "polarity": "support",
+                          "received_at": "2026-04-08T17:20:00Z",
+                          "schema_version": "sensekit.context_signal.v1",
+                          "signal_id": "preview-signal",
+                          "signal_key": "motion.activity_observed",
+                          "source": "manual_test",
+                          "valid_for_sec": 60,
+                          "weight": 1
+                        }
+                      ]
+                    }
+                    """,
                     retryCount: 0
                 )
             ]

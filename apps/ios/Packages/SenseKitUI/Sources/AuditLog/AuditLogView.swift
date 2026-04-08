@@ -6,6 +6,7 @@ public struct AuditLogView: View {
     private let availableEventTypes: [String]
     @Binding private var selectedEventType: String?
     @State private var copiedEntryID: String?
+    @State private var inspectionState = AuditLogInspectionState()
 
     public init(
         entries: [AuditLogEntry],
@@ -18,11 +19,22 @@ public struct AuditLogView: View {
     }
 
     public var body: some View {
+        let displayedEntries = inspectionState.displayedEntries(liveEntries: entries)
+        let displayedEventTypes = inspectionState.displayedAvailableEventTypes(liveAvailableEventTypes: availableEventTypes)
+
         List {
             Section {
-                Text("Audit is the delivery ledger. It shows which outbound events were queued, delivered, or failed on the way to OpenClaw.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Audit is the delivery ledger. It shows which outbound signal batches were queued, delivered, or failed on the way to OpenClaw, and lets you inspect the exact JSON body that was sent.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    if inspectionState.isInspectingPayload {
+                        Text("Live updates are paused while exact JSON is open.")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
             }
 
             Section {
@@ -36,7 +48,7 @@ public struct AuditLogView: View {
                             selectedEventType = nil
                         }
 
-                        ForEach(availableEventTypes, id: \.self) { eventType in
+                        ForEach(displayedEventTypes, id: \.self) { eventType in
                             FilterChip(
                                 title: AuditEventFilter.title(for: eventType),
                                 isSelected: selectedEventType == eventType,
@@ -48,18 +60,19 @@ public struct AuditLogView: View {
                     }
                     .padding(.vertical, 2)
                 }
+                .disabled(inspectionState.isInspectingPayload)
             } header: {
                 Text("Show Event Type")
             }
 
             Section {
-                if entries.isEmpty {
-                    Text("No outbound events for this filter yet.")
+                if displayedEntries.isEmpty {
+                    Text("No outbound signal batches for this filter yet.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(entries) { entry in
-                        VStack(alignment: .leading, spacing: 4) {
+                    ForEach(displayedEntries) { entry in
+                        VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text(entry.eventType)
                                     .font(.headline)
@@ -83,6 +96,28 @@ public struct AuditLogView: View {
                                 .foregroundStyle(.secondary)
                             Text(entry.payloadSummary)
                                 .font(.footnote)
+                            if let payload = entry.payload, !payload.isEmpty {
+                                DisclosureGroup(
+                                    "Show exact JSON sent",
+                                    isExpanded: payloadDisclosureBinding(for: entry.id)
+                                ) {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("OpenClaw receives this exact request body.")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+
+                                        ScrollView(.horizontal, showsIndicators: true) {
+                                            Text(payload)
+                                                .font(.system(.caption, design: .monospaced))
+                                                .textSelection(.enabled)
+                                                .padding(10)
+                                                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        }
+                                    }
+                                    .padding(.top, 4)
+                                }
+                                .font(.footnote)
+                            }
                             Text(entry.createdAt, style: .time)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -100,5 +135,21 @@ public struct AuditLogView: View {
             }
         }
         .navigationTitle("Audit Log")
+    }
+
+    private func payloadDisclosureBinding(for entryID: String) -> Binding<Bool> {
+        Binding(
+            get: {
+                inspectionState.expandedEntryIDs.contains(entryID)
+            },
+            set: { isExpanded in
+                inspectionState.setPayloadExpanded(
+                    isExpanded,
+                    for: entryID,
+                    liveEntries: entries,
+                    liveAvailableEventTypes: availableEventTypes
+                )
+            }
+        )
     }
 }

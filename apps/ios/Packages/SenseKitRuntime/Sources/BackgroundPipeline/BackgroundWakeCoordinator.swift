@@ -102,6 +102,7 @@ public actor BackgroundWakeCoordinator {
             signals: signals,
             delivery: DeliveryMetadata(attempt: 1, queuedAt: clock.now())
         )
+        let auditPayload = try prettyPrintedPayloadString(batch)
 
         let queued = QueuedWebhook(
             eventType: deliveryLabel,
@@ -116,6 +117,7 @@ public actor BackgroundWakeCoordinator {
                 destination: configuration.openClaw?.endpointURL.absoluteString ?? "unconfigured",
                 status: .queued,
                 payloadSummary: "signals=\(signals.map(\.signalKey).joined(separator: ","))",
+                payload: auditPayload,
                 retryCount: 0
             )
         )
@@ -157,6 +159,7 @@ public actor BackgroundWakeCoordinator {
             signals: signalBatch.signals,
             delivery: DeliveryMetadata(attempt: item.attempt, queuedAt: item.queuedAt)
         )
+        let auditPayload = try prettyPrintedPayloadString(deliveryBatch)
 
         do {
             let result = try await deliveryClient.deliver(deliveryBatch, configuration: configuration)
@@ -171,6 +174,7 @@ public actor BackgroundWakeCoordinator {
                     destination: configuration.endpointURL.absoluteString,
                     status: .delivered,
                     payloadSummary: "HTTP \(result.statusCode)",
+                    payload: auditPayload,
                     retryCount: item.attempt - 1
                 )
             )
@@ -187,6 +191,7 @@ public actor BackgroundWakeCoordinator {
                     destination: configuration.endpointURL.absoluteString,
                     status: .failed,
                     payloadSummary: String(describing: error),
+                    payload: auditPayload,
                     retryCount: retrying.attempt - 1
                 )
             )
@@ -445,6 +450,13 @@ public actor BackgroundWakeCoordinator {
     private func payloadString<T: Encodable>(_ value: T) throws -> String {
         let data = try JSONCoding.encoder.encode(value)
         return String(decoding: data, as: UTF8.self)
+    }
+
+    private func prettyPrintedPayloadString<T: Encodable>(_ value: T) throws -> String {
+        let data = try JSONCoding.encoder.encode(value)
+        let object = try JSONSerialization.jsonObject(with: data)
+        let prettyData = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+        return String(decoding: prettyData, as: UTF8.self)
     }
 
     private func iso8601(_ date: Date) -> String {
