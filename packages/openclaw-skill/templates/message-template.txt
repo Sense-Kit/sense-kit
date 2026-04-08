@@ -1,5 +1,4 @@
-SenseKit event: {{event.event_type}}
-Confidence: {{event.confidence}}
-Mode hint: {{event.mode_hint}}
-Place: {{snapshot.place.type}}
-Snapshot: {{snapshot}}
+SenseKit batch: {{batch_id}}
+Platform: {{device.platform}}
+Place sharing: {{device.place_sharing_mode}}
+Signals: {{signals}}

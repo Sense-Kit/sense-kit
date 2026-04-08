@@ -19,12 +19,7 @@ for (const schemaFile of schemaFiles) {
 
 const pairs = [
   ["context-signal.v1.schema.json", "context-signal.wake.json"],
-  ["context-event.v1.schema.json", "context-event.driving_started.json"],
-  ["context-snapshot.v1.schema.json", "context-snapshot.default.json"],
-  ["context-snapshot.v1.schema.json", "context-snapshot.health.json"],
-  ["policy-decision.v1.schema.json", "policy-decision.driving_started.json"],
-  ["sensekit-event-envelope.v1.schema.json", "sensekit-event-envelope.driving_started.json"],
-  ["sensekit-event-envelope.v1.schema.json", "sensekit-event-envelope.health_snapshot_updated.json"]
+  ["sensekit-signal-batch.v1.schema.json", "sensekit-signal-batch.mixed.json"]
 ];
 
 let failed = false;

@@ -1,0 +1,75 @@
+{
+  "schema_version": "sensekit.signal_batch.v1",
+  "batch_id": "batch_01",
+  "sent_at": "2026-04-08T08:15:00Z",
+  "device": {
+    "device_id": "iphone_julian",
+    "platform": "ios",
+    "place_sharing_mode": "precise_coordinates"
+  },
+  "signals": [
+    {
+      "schema_version": "sensekit.context_signal.v1",
+      "signal_id": "sig_motion_01",
+      "signal_key": "motion.activity_observed",
+      "collector": "motion",
+      "source": "coremotion_activity",
+      "weight": 1,
+      "polarity": "support",
+      "observed_at": "2026-04-08T08:14:55Z",
+      "received_at": "2026-04-08T08:14:55Z",
+      "valid_for_sec": 1,
+      "payload": {
+        "primary_kind": "automotive",
+        "confidence": "high",
+        "automotive": true,
+        "walking": false,
+        "running": false,
+        "stationary": false,
+        "cycling": false
+      }
+    },
+    {
+      "schema_version": "sensekit.context_signal.v1",
+      "signal_id": "sig_location_01",
+      "signal_key": "location.location_observed",
+      "collector": "location",
+      "source": "corelocation_significant_change",
+      "weight": 1,
+      "polarity": "support",
+      "observed_at": "2026-04-08T08:14:57Z",
+      "received_at": "2026-04-08T08:14:57Z",
+      "valid_for_sec": 300,
+      "payload": {
+        "latitude": 47.3769,
+        "longitude": 8.5417,
+        "horizontal_accuracy_m": 22,
+        "speed_mps": 11.8,
+        "speed_kmh": 42.48,
+        "course_deg": 91
+      }
+    },
+    {
+      "schema_version": "sensekit.context_signal.v1",
+      "signal_id": "sig_power_01",
+      "signal_key": "power.battery_state_changed",
+      "collector": "power",
+      "source": "uidevice_battery",
+      "weight": 1,
+      "polarity": "support",
+      "observed_at": "2026-04-08T08:15:00Z",
+      "received_at": "2026-04-08T08:15:00Z",
+      "valid_for_sec": 120,
+      "payload": {
+        "previous_state": "charging",
+        "current_state": "unplugged",
+        "battery_level": 0.82,
+        "battery_level_percent": 82
+      }
+    }
+  ],
+  "delivery": {
+    "attempt": 1,
+    "queued_at": "2026-04-08T08:15:00Z"
+  }
+}

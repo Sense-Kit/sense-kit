@@ -1,7 +1,7 @@
 interface:
   display_name: "SenseKit for OpenClaw"
-  short_description: "SenseKit hook setup and event handling"
-  default_prompt: "Use $sensekit-openclaw to configure OpenClaw for SenseKit webhooks and interpret incoming SenseKit events safely."
+  short_description: "SenseKit hook setup and raw signal batch handling"
+  default_prompt: "Use $sensekit-openclaw to configure OpenClaw for SenseKit webhooks and interpret incoming SenseKit raw signal batches safely."
 
 policy:
   allow_implicit_invocation: true

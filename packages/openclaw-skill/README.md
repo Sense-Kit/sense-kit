@@ -4,9 +4,9 @@ This package contains the OpenClaw-facing assets for SenseKit.
 
 Current contents:
 
-- `SKILL.md`: agent guidance for configuring and interpreting SenseKit events
+- `SKILL.md`: agent guidance for configuring and interpreting SenseKit raw signal batches
 - `references/hook-config.md`: known-good webhook mapping
-- `references/payload-shape.md`: real payload fields and event types
+- `references/payload-shape.md`: real payload fields and signal batch shape
 - `templates/message-template.txt`: simple message template for hook delivery
 
 The phone remains webhook-first in MVP. The OpenClaw plugin is still optional later.

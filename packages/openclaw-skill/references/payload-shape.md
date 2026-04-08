@@ -1,95 +1,116 @@
 # SenseKit Payload Shape
 
-SenseKit sends a JSON envelope with four important top-level sections:
+SenseKit now sends a raw signal batch as JSON.
 
-- `event`: what happened
-- `snapshot`: the current phone context around that event
-- `policy`: what output styles are preferred or blocked
-- `delivery`: queue metadata about the webhook send
+The important top-level sections are:
 
-## Top-level envelope
+- `device`: what kind of phone context rules were active
+- `signals`: the actual observed collector output
+- `delivery`: queue metadata about this send attempt
+
+## Top-level batch
 
 ```json
 {
-  "schema_version": "sensekit.event.v1",
-  "device_id": "iphone_julian",
-  "event": { "...": "..." },
-  "snapshot": { "...": "..." },
-  "policy": { "...": "..." },
+  "schema_version": "sensekit.signal_batch.v1",
+  "batch_id": "batch_123",
+  "sent_at": "2026-04-08T08:15:00Z",
+  "device": { "...": "..." },
+  "signals": [{ "...": "..." }],
   "delivery": { "...": "..." }
 }
 ```
 
-## Event
-
-Important fields:
-
-- `event.event_id`
-- `event.event_type`
-- `event.occurred_at`
-- `event.confidence`
-- `event.reasons`
-- `event.mode_hint`
-- `event.cooldown_sec`
-- `event.dedupe_key`
-
-Known `event.event_type` values in the app:
-
-- `motion_activity_observed`
-- `health_snapshot_updated`
-- `wake_confirmed`
-- `driving_started`
-- `driving_stopped`
-- `arrived_place`
-- `left_place`
-- `arrived_home`
-- `left_home`
-- `arrived_work`
-- `left_work`
-- `workout_started`
-- `workout_ended`
-- `focus_on`
-- `focus_off`
-
-Known `event.mode_hint` values:
-
-- `text_brief`
-- `voice_safe`
-- `voice_note`
-- `normal`
-
-## Snapshot
+## Device
 
 Useful fields:
 
-- `snapshot.routine.awake`
-- `snapshot.routine.focus`
-- `snapshot.routine.workout`
-- `snapshot.place.type`
-- `snapshot.place.freshness`
-- `snapshot.calendar.in_meeting`
-- `snapshot.calendar.next_meeting_in_min`
-- `snapshot.device.battery_percent_bucket`
-- `snapshot.device.charging`
+- `device.device_id`
+- `device.platform`
+- `device.place_sharing_mode`
 
-`snapshot.place.type` is one of:
+`device.place_sharing_mode` is one of:
 
-- `home`
-- `work`
-- `custom`
-- `other`
+- `labels_only`
+- `precise_coordinates`
 
-## Policy
+If coordinates are missing while the mode is `labels_only`, that is expected.
+
+## Signals
+
+Every item in `signals[]` is a raw collector observation.
 
 Useful fields:
 
-- `policy.event_type`
-- `policy.allowed_actions`
-- `policy.blocked_actions`
-- `policy.delivery_channel_preference`
-- `policy.ttl_sec`
+- `signal_id`
+- `signal_key`
+- `collector`
+- `source`
+- `observed_at`
+- `received_at`
+- `payload`
 
-The policy is there to shape the reply style. Example: if long markdown is blocked, do not lead with a long markdown response.
+Known `collector` values:
+
+- `motion`
+- `location`
+- `power`
+- `health`
+- `manual`
+- `unknown`
+
+Common `signal_key` values in the app today:
+
+- `motion.activity_observed`
+- `location.region_state_changed`
+- `location.location_observed`
+- `power.battery_state_changed`
+- `power.battery_level_observed`
+- `health.workout_sample_observed`
+
+Example payload fields:
+
+- `motion.activity_observed`
+  - `primary_kind`
+  - `confidence`
+  - `automotive`
+  - `walking`
+  - `running`
+  - `stationary`
+  - `cycling`
+- `location.region_state_changed`
+  - `transition`
+  - `place_identifier`
+  - `place_name`
+  - `place_type`
+  - `radius_m`
+  - optional `latitude`
+  - optional `longitude`
+- `location.location_observed`
+  - optional `latitude`
+  - optional `longitude`
+  - `horizontal_accuracy_m`
+  - `vertical_accuracy_m`
+  - `speed_mps`
+  - `speed_kmh`
+  - `course_deg`
+  - `altitude_m`
+  - `timestamp`
+- `power.battery_state_changed`
+  - `previous_state`
+  - `current_state`
+  - `battery_level`
+  - `battery_level_percent`
+  - `is_charging`
+- `health.workout_sample_observed`
+  - `uuid`
+  - `activity_type`
+  - `start_at`
+  - `end_at`
+  - `duration_sec`
+  - optional `total_energy_kcal`
+  - optional `total_distance_m`
+  - optional `metadata_keys`
 
 ## Delivery
 
@@ -98,4 +119,4 @@ Useful fields:
 - `delivery.attempt`
 - `delivery.queued_at`
 
-These fields are mostly for debugging and retries, not for the user-facing message.
+These are mostly for debugging retries, not for user-facing messaging.

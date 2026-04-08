@@ -26,6 +26,10 @@
       "type": "string",
       "minLength": 1
     },
+    "collector": {
+      "type": "string",
+      "enum": ["motion", "location", "power", "health", "manual", "unknown"]
+    },
     "source": {
       "type": "string",
       "minLength": 1
@@ -43,6 +47,10 @@
       "type": "string",
       "format": "date-time"
     },
+    "received_at": {
+      "type": "string",
+      "format": "date-time"
+    },
     "valid_for_sec": {
       "type": "integer",
       "minimum": 1
@@ -52,4 +60,3 @@
     }
   }
 }
-
