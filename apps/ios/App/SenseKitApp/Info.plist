@@ -22,16 +22,14 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSCalendarsUsageDescription</key>
-	<string>SenseKit can read whether you are currently in a meeting or have one soon. It does not send event titles or attendees.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>SenseKit can read workout start and end timing for follow-up automations. It does not send raw Health data.</string>
+	<string>SenseKit can observe workout samples and send workout signal metadata to your configured OpenClaw endpoint.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>SenseKit uses your saved places to detect arrivals and departures in the background and sends only coarse place labels to your configured OpenClaw endpoint.</string>
+	<string>SenseKit uses your saved places to detect arrivals and departures in the background and can send place labels or precise coordinates to your configured OpenClaw endpoint, depending on your setting.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>SenseKit uses your location while you set up places and to improve driving detection.</string>
+	<string>SenseKit uses your location while you set up places and to observe location changes that help OpenClaw reason about driving and place changes.</string>
 	<key>NSMotionUsageDescription</key>
-	<string>SenseKit uses Motion &amp; Fitness activity to detect wake and driving changes on-device.</string>
+	<string>SenseKit uses Motion &amp; Fitness activity to observe movement changes and send those signals to your configured OpenClaw endpoint.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -171,7 +171,7 @@ final class LocationRuntimeControllerTests: XCTestCase {
         XCTAssertEqual(collectorFactory.collector.restoreCount, 1)
     }
 
-    func testHomeRegionSignalEmitsArrivedHomeEvent() async throws {
+    func testHomeRegionSignalDeliversRawRegionStateChange() async throws {
         let clock = FixedLocationClock(currentDate: date(hour: 18, minute: 22))
         let store = LocationControllerTestRuntimeStore()
         let settingsStore = InMemorySettingsStore(
@@ -191,8 +191,6 @@ final class LocationRuntimeControllerTests: XCTestCase {
         let controller = LocationRuntimeController(
             store: store,
             settingsStore: settingsStore,
-            snapshotEnricher: SnapshotEnricher(),
-            policyEngine: PolicyEngine(),
             deliveryClient: deliveryClient,
             clock: clock,
             locationCollectorFactory: collectorFactory,
@@ -214,21 +212,26 @@ final class LocationRuntimeControllerTests: XCTestCase {
 
         await collectorFactory.collector.emit(
             ContextSignal(
-                signalKey: "location.region_enter_home",
+                signalKey: "location.region_state_changed",
                 source: "test",
-                weight: 0.85,
+                weight: 1.0,
                 polarity: .support,
                 observedAt: clock.now(),
-                validForSec: 180
+                validForSec: 180,
+                payload: [
+                    "transition": .string("enter"),
+                    "place_identifier": .string("home"),
+                    "place_type": .string("home"),
+                    "radius_m": .number(150)
+                ]
             )
         )
 
         let timelineEntries = try await store.timelineEntries(limit: 20)
-        XCTAssertTrue(timelineEntries.contains { $0.message.contains("Received signal location.region_enter_home") })
-        XCTAssertTrue(timelineEntries.contains { $0.message.contains("Emitted arrived_home") })
+        XCTAssertTrue(timelineEntries.contains { $0.message.contains("Received raw signal location.region_state_changed") })
 
         let auditEntries = try await store.auditEntries(limit: 20)
-        XCTAssertTrue(auditEntries.contains { $0.eventType == "arrived_home" && $0.status == .delivered })
+        XCTAssertTrue(auditEntries.contains { $0.eventType == "location.region_state_changed" && $0.status == .delivered })
     }
 
     private func date(hour: Int, minute: Int) -> Date {

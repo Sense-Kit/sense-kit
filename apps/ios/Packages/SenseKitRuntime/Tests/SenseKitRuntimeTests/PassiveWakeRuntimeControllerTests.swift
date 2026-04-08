@@ -9,22 +9,23 @@ final class PassiveWakeRuntimeControllerTests: XCTestCase {
         let settingsStore = InMemorySettingsStore(
             configuration: RuntimeConfiguration(deviceID: "device-1", enabledFeatures: [.wakeBrief])
         )
-        let collectorFactory = TestMotionCollectorFactory()
+        let motionCollectorFactory = TestMotionCollectorFactory()
+        let powerCollectorFactory = TestPowerCollectorFactory()
         let controller = PassiveWakeRuntimeController(
             store: store,
             settingsStore: settingsStore,
-            snapshotEnricher: SnapshotEnricher(),
-            policyEngine: PolicyEngine(),
             deliveryClient: DeliveryClient(),
             clock: FixedClock(currentDate: date(hour: 6, minute: 45)),
-            motionCollectorFactory: collectorFactory,
+            motionCollectorFactory: motionCollectorFactory,
+            powerCollectorFactory: powerCollectorFactory,
             motionAuthorizationProvider: StubMotionAuthorizationProvider(status: .authorized)
         )
 
         let status = try await controller.refresh(configuration: RuntimeConfiguration(deviceID: "device-1", enabledFeatures: [.wakeBrief]))
 
         XCTAssertEqual(status, .running)
-        XCTAssertEqual(collectorFactory.collector.startCount, 1)
+        XCTAssertEqual(motionCollectorFactory.collector.startCount, 1)
+        XCTAssertEqual(powerCollectorFactory.collector.startCount, 1)
     }
 
     func testRefreshStartsMotionCollectorWhenDrivingFeatureEnabled() async throws {
@@ -32,22 +33,23 @@ final class PassiveWakeRuntimeControllerTests: XCTestCase {
         let settingsStore = InMemorySettingsStore(
             configuration: RuntimeConfiguration(deviceID: "device-1", enabledFeatures: [.drivingMode])
         )
-        let collectorFactory = TestMotionCollectorFactory()
+        let motionCollectorFactory = TestMotionCollectorFactory()
+        let powerCollectorFactory = TestPowerCollectorFactory()
         let controller = PassiveWakeRuntimeController(
             store: store,
             settingsStore: settingsStore,
-            snapshotEnricher: SnapshotEnricher(),
-            policyEngine: PolicyEngine(),
             deliveryClient: DeliveryClient(),
             clock: FixedClock(currentDate: date(hour: 6, minute: 45)),
-            motionCollectorFactory: collectorFactory,
+            motionCollectorFactory: motionCollectorFactory,
+            powerCollectorFactory: powerCollectorFactory,
             motionAuthorizationProvider: StubMotionAuthorizationProvider(status: .authorized)
         )
 
         let status = try await controller.refresh(configuration: RuntimeConfiguration(deviceID: "device-1", enabledFeatures: [.drivingMode]))
 
         XCTAssertEqual(status, .running)
-        XCTAssertEqual(collectorFactory.collector.startCount, 1)
+        XCTAssertEqual(motionCollectorFactory.collector.startCount, 1)
+        XCTAssertEqual(powerCollectorFactory.collector.startCount, 1)
     }
 
     func testRefreshDoesNotStartCollectorWhenMotionDenied() async throws {
@@ -55,22 +57,23 @@ final class PassiveWakeRuntimeControllerTests: XCTestCase {
         let settingsStore = InMemorySettingsStore(
             configuration: RuntimeConfiguration(deviceID: "device-1", enabledFeatures: [.wakeBrief])
         )
-        let collectorFactory = TestMotionCollectorFactory()
+        let motionCollectorFactory = TestMotionCollectorFactory()
+        let powerCollectorFactory = TestPowerCollectorFactory()
         let controller = PassiveWakeRuntimeController(
             store: store,
             settingsStore: settingsStore,
-            snapshotEnricher: SnapshotEnricher(),
-            policyEngine: PolicyEngine(),
             deliveryClient: DeliveryClient(),
             clock: FixedClock(currentDate: date(hour: 6, minute: 45)),
-            motionCollectorFactory: collectorFactory,
+            motionCollectorFactory: motionCollectorFactory,
+            powerCollectorFactory: powerCollectorFactory,
             motionAuthorizationProvider: StubMotionAuthorizationProvider(status: .denied)
         )
 
         let status = try await controller.refresh(configuration: RuntimeConfiguration(deviceID: "device-1", enabledFeatures: [.wakeBrief]))
 
         XCTAssertEqual(status, .permissionDenied)
-        XCTAssertEqual(collectorFactory.collector.startCount, 0)
+        XCTAssertEqual(motionCollectorFactory.collector.startCount, 0)
+        XCTAssertEqual(powerCollectorFactory.collector.startCount, 0)
     }
 
     func testRefreshStartsCollectorButKeepsPermissionRequiredWhenMotionNotDetermined() async throws {
@@ -78,22 +81,23 @@ final class PassiveWakeRuntimeControllerTests: XCTestCase {
         let settingsStore = InMemorySettingsStore(
             configuration: RuntimeConfiguration(deviceID: "device-1", enabledFeatures: [.wakeBrief])
         )
-        let collectorFactory = TestMotionCollectorFactory()
+        let motionCollectorFactory = TestMotionCollectorFactory()
+        let powerCollectorFactory = TestPowerCollectorFactory()
         let controller = PassiveWakeRuntimeController(
             store: store,
             settingsStore: settingsStore,
-            snapshotEnricher: SnapshotEnricher(),
-            policyEngine: PolicyEngine(),
             deliveryClient: DeliveryClient(),
             clock: FixedClock(currentDate: date(hour: 6, minute: 45)),
-            motionCollectorFactory: collectorFactory,
+            motionCollectorFactory: motionCollectorFactory,
+            powerCollectorFactory: powerCollectorFactory,
             motionAuthorizationProvider: StubMotionAuthorizationProvider(status: .notDetermined)
         )
 
         let status = try await controller.refresh(configuration: RuntimeConfiguration(deviceID: "device-1", enabledFeatures: [.wakeBrief]))
 
         XCTAssertEqual(status, .permissionRequired)
-        XCTAssertEqual(collectorFactory.collector.startCount, 1)
+        XCTAssertEqual(motionCollectorFactory.collector.startCount, 1)
+        XCTAssertEqual(powerCollectorFactory.collector.startCount, 1)
     }
 
     func testRawMotionSignalFromCollectorEmitsMotionObservationEventWithoutChangingWakeState() async throws {
@@ -115,8 +119,6 @@ final class PassiveWakeRuntimeControllerTests: XCTestCase {
         let controller = PassiveWakeRuntimeController(
             store: store,
             settingsStore: settingsStore,
-            snapshotEnricher: SnapshotEnricher(),
-            policyEngine: PolicyEngine(),
             deliveryClient: deliveryClient,
             clock: clock,
             motionCollectorFactory: collectorFactory,
@@ -152,11 +154,10 @@ final class PassiveWakeRuntimeControllerTests: XCTestCase {
         )
 
         let timelineEntries = try await store.timelineEntries(limit: 20)
-        XCTAssertTrue(timelineEntries.contains { $0.message.contains("Received raw motion activity walking") })
-        XCTAssertFalse(timelineEntries.contains { $0.message.contains("Emitted motion_activity_observed") })
+        XCTAssertTrue(timelineEntries.contains { $0.message.contains("Received raw signal motion.activity_observed") })
 
         let state = try await store.loadRuntimeState()
-        XCTAssertNil(state.lastWakeAt)
+        XCTAssertEqual(state.currentPlace, .other)
     }
 
     private func date(hour: Int, minute: Int) -> Date {
@@ -187,6 +188,16 @@ private final class TestMotionCollectorFactory: MotionCollectorBuilding {
 }
 
 @MainActor
+private final class TestPowerCollectorFactory: PowerCollectorBuilding {
+    let collector = TestPowerCollector()
+
+    func makePowerCollector(signalHandler: @escaping SignalHandler) -> any ContextSignalCollector {
+        collector.signalHandler = signalHandler
+        return collector
+    }
+}
+
+@MainActor
 private final class TestMotionCollector: ContextSignalCollector {
     var startCount = 0
     var stopCount = 0
@@ -202,6 +213,21 @@ private final class TestMotionCollector: ContextSignalCollector {
 
     func emit(_ signal: ContextSignal) async {
         await signalHandler?(signal)
+    }
+}
+
+@MainActor
+private final class TestPowerCollector: ContextSignalCollector {
+    var startCount = 0
+    var stopCount = 0
+    var signalHandler: SignalHandler?
+
+    func start() async {
+        startCount += 1
+    }
+
+    func stop() {
+        stopCount += 1
     }
 }
 

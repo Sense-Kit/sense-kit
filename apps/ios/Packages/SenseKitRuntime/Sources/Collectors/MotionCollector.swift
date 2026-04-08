@@ -4,34 +4,57 @@ struct MotionActivityObservation: Equatable, Sendable {
     static let signalKey = "motion.activity_observed"
 
     let primaryKind: String
-    let flags: [String]
     let confidence: String
+    let automotive: Bool
+    let walking: Bool
+    let running: Bool
+    let stationary: Bool
+    let cycling: Bool
 
-    init(primaryKind: String, flags: [String], confidence: String) {
-        let normalizedFlags = Array(Set(flags)).sorted()
+    init(
+        primaryKind: String,
+        confidence: String,
+        automotive: Bool,
+        walking: Bool,
+        running: Bool,
+        stationary: Bool,
+        cycling: Bool
+    ) {
         self.primaryKind = primaryKind
-        self.flags = normalizedFlags.isEmpty ? ["unknown"] : normalizedFlags
         self.confidence = confidence
+        self.automotive = automotive
+        self.walking = walking
+        self.running = running
+        self.stationary = stationary
+        self.cycling = cycling
     }
 
     init?(signal: ContextSignal) {
         guard signal.signalKey == Self.signalKey else { return nil }
         guard case .string(let primaryKind)? = signal.payload["primary_kind"] else { return nil }
         guard case .string(let confidence)? = signal.payload["confidence"] else { return nil }
+        let automotive = signal.payload.boolValue(for: "automotive")
+        let walking = signal.payload.boolValue(for: "walking")
+        let running = signal.payload.boolValue(for: "running")
+        let stationary = signal.payload.boolValue(for: "stationary")
+        let cycling = signal.payload.boolValue(for: "cycling")
 
-        var flags: [String] = []
-        if case .array(let values)? = signal.payload["flags"] {
-            flags = values.compactMap { value in
-                guard case .string(let flag) = value else { return nil }
-                return flag
-            }
-        }
-
-        self.init(primaryKind: primaryKind, flags: flags, confidence: confidence)
+        self.init(
+            primaryKind: primaryKind,
+            confidence: confidence,
+            automotive: automotive,
+            walking: walking,
+            running: running,
+            stationary: stationary,
+            cycling: cycling
+        )
     }
 
     var reasons: [String] {
-        ["motion.primary.\(primaryKind)", "motion.confidence.\(confidence)"] + flags.map { "motion.flag.\($0)" }
+        [
+            "motion.primary.\(primaryKind)",
+            "motion.confidence.\(confidence)"
+        ] + flags.map { "motion.flag.\($0)" }
     }
 
     var confidenceScore: Double {
@@ -47,19 +70,37 @@ struct MotionActivityObservation: Equatable, Sendable {
         }
     }
 
+    var flags: [String] {
+        var flags: [String] = []
+        if automotive { flags.append("automotive") }
+        if walking { flags.append("walking") }
+        if running { flags.append("running") }
+        if stationary { flags.append("stationary") }
+        if cycling { flags.append("cycling") }
+        if flags.isEmpty { flags.append("unknown") }
+        return flags
+    }
+
     func makeSignal(observedAt: Date, signalID: String = UUID().uuidString) -> ContextSignal {
         ContextSignal(
             signalID: signalID,
             signalKey: Self.signalKey,
+            collector: .motion,
             source: "coremotion_activity",
             weight: confidenceScore,
             polarity: .support,
             observedAt: observedAt,
+            receivedAt: observedAt,
             validForSec: 1,
             payload: [
                 "primary_kind": .string(primaryKind),
                 "confidence": .string(confidence),
-                "flags": .array(flags.map(JSONValue.string))
+                "flags": .array(flags.map(JSONValue.string)),
+                "automotive": .bool(automotive),
+                "walking": .bool(walking),
+                "running": .bool(running),
+                "stationary": .bool(stationary),
+                "cycling": .bool(cycling)
             ]
         )
     }
@@ -98,8 +139,12 @@ public final class MotionCollector: NSObject, ContextSignalCollector {
         let now = clock.now()
         let observation = MotionActivityObservation(
             primaryKind: primaryKind(activity),
-            flags: activityFlags(activity),
-            confidence: activity.confidence.description
+            confidence: activity.confidence.description,
+            automotive: activity.automotive,
+            walking: activity.walking,
+            running: activity.running,
+            stationary: activity.stationary,
+            cycling: activity.cycling
         )
         guard observation != lastObservation else { return }
         lastObservation = observation
@@ -118,16 +163,6 @@ public final class MotionCollector: NSObject, ContextSignalCollector {
         return "unknown"
     }
 
-    private func activityFlags(_ activity: CMMotionActivity) -> [String] {
-        var flags: [String] = []
-        if activity.automotive { flags.append("automotive") }
-        if activity.walking { flags.append("walking") }
-        if activity.running { flags.append("running") }
-        if activity.stationary { flags.append("stationary") }
-        if activity.cycling { flags.append("cycling") }
-        if flags.isEmpty { flags.append("unknown") }
-        return flags
-    }
 }
 
 private extension CMMotionActivityConfidence {
@@ -147,3 +182,12 @@ public final class MotionCollector: ContextSignalCollector {
     public func stop() {}
 }
 #endif
+
+private extension Dictionary where Key == String, Value == JSONValue {
+    func boolValue(for key: String) -> Bool {
+        guard case .bool(let value)? = self[key] else {
+            return false
+        }
+        return value
+    }
+}

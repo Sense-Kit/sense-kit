@@ -97,8 +97,6 @@ final class DefaultLocationAuthorizationProvider: LocationAuthorizationProviding
 public final class LocationRuntimeController {
     private let store: RuntimeStore
     private let settingsStore: SettingsStore
-    private let snapshotEnricher: SnapshotEnricher
-    private let policyEngine: PolicyEngine
     private let deliveryClient: DeliveryClient
     private let clock: Clock
     private let locationCollectorFactory: LocationCollectorBuilding
@@ -110,15 +108,11 @@ public final class LocationRuntimeController {
     public init(
         store: RuntimeStore,
         settingsStore: SettingsStore,
-        snapshotEnricher: SnapshotEnricher = SnapshotEnricher(),
-        policyEngine: PolicyEngine = PolicyEngine(),
         deliveryClient: DeliveryClient = DeliveryClient(),
         clock: Clock = SystemClock()
     ) {
         self.store = store
         self.settingsStore = settingsStore
-        self.snapshotEnricher = snapshotEnricher
-        self.policyEngine = policyEngine
         self.deliveryClient = deliveryClient
         self.clock = clock
         self.locationCollectorFactory = DefaultLocationCollectorFactory()
@@ -128,8 +122,6 @@ public final class LocationRuntimeController {
     init(
         store: RuntimeStore,
         settingsStore: SettingsStore,
-        snapshotEnricher: SnapshotEnricher = SnapshotEnricher(),
-        policyEngine: PolicyEngine = PolicyEngine(),
         deliveryClient: DeliveryClient = DeliveryClient(),
         clock: Clock = SystemClock(),
         locationCollectorFactory: LocationCollectorBuilding = DefaultLocationCollectorFactory(),
@@ -137,8 +129,6 @@ public final class LocationRuntimeController {
     ) {
         self.store = store
         self.settingsStore = settingsStore
-        self.snapshotEnricher = snapshotEnricher
-        self.policyEngine = policyEngine
         self.deliveryClient = deliveryClient
         self.clock = clock
         self.locationCollectorFactory = locationCollectorFactory
@@ -243,12 +233,8 @@ public final class LocationRuntimeController {
     }
 
     private func makeCoordinator(configuration: RuntimeConfiguration) -> BackgroundWakeCoordinator {
-        let engine = CorroborationEngine(store: store, configuration: configuration, clock: clock)
         return BackgroundWakeCoordinator(
             store: store,
-            engine: engine,
-            snapshotEnricher: snapshotEnricher,
-            policyEngine: policyEngine,
             deliveryClient: deliveryClient,
             settingsStore: settingsStore,
             clock: clock

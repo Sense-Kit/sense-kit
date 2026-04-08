@@ -47,7 +47,7 @@ public struct SenseKitLoadedState: Sendable {
 public protocol SenseKitAppService: Sendable {
     func loadState() async throws -> SenseKitLoadedState
     func saveConfiguration(_ configuration: RuntimeConfiguration) async throws
-    func sendTestEvent(_ eventType: ContextEventType) async throws
+    func sendTestScenario(_ scenario: SignalTestScenario) async throws
     func captureCurrentRegion(identifier: String, radiusMeters: Double) async throws -> RegionConfiguration
     func suggestRegions(query: String) async throws -> [PlaceSearchSuggestion]
     func searchRegion(query: String, identifier: String, radiusMeters: Double) async throws -> RegionConfiguration
@@ -58,11 +58,10 @@ public actor LiveSenseKitAppService: SenseKitAppService {
     private let store: RuntimeStore
     private let settingsStore: SettingsStore
     private let clock: Clock
-    private let snapshotEnricher: SnapshotEnricher
-    private let policyEngine: PolicyEngine
     private let deliveryClient: DeliveryClient
     private var passiveWakeRuntime: PassiveWakeRuntimeController?
     private var locationRuntime: LocationRuntimeController?
+    private var healthRuntime: HealthRuntimeController?
     private var currentLocationResolver: LiveCurrentLocationResolver?
     private var addressSearchResolver: LiveAddressSearchResolver?
     private var hasBootstrapped = false
@@ -71,15 +70,11 @@ public actor LiveSenseKitAppService: SenseKitAppService {
         store: RuntimeStore,
         settingsStore: SettingsStore,
         clock: Clock = SystemClock(),
-        snapshotEnricher: SnapshotEnricher = SnapshotEnricher(),
-        policyEngine: PolicyEngine = PolicyEngine(),
         deliveryClient: DeliveryClient = DeliveryClient()
     ) {
         self.store = store
         self.settingsStore = settingsStore
         self.clock = clock
-        self.snapshotEnricher = snapshotEnricher
-        self.policyEngine = policyEngine
         self.deliveryClient = deliveryClient
     }
 
@@ -88,6 +83,7 @@ public actor LiveSenseKitAppService: SenseKitAppService {
         let configuration = try await settingsStore.load()
         let wakeCollectorStatus = try await ensurePassiveWakeRuntime().refresh(configuration: configuration)
         let locationCollectorStatus = try await ensureLocationRuntime().refresh(configuration: configuration)
+        _ = try await ensureHealthRuntime().refresh(configuration: configuration)
         let timelineEntries = try await store.timelineEntries(limit: 100)
         let auditEntries = try await store.auditEntries(limit: 100)
         return SenseKitLoadedState(
@@ -103,6 +99,7 @@ public actor LiveSenseKitAppService: SenseKitAppService {
         try await settingsStore.save(configuration)
         _ = try await ensurePassiveWakeRuntime().refresh(configuration: configuration)
         _ = try await ensureLocationRuntime().refresh(configuration: configuration)
+        _ = try await ensureHealthRuntime().refresh(configuration: configuration)
         try await store.appendDebugEntry(
             DebugTimelineEntry(
                 createdAt: clock.now(),
@@ -113,10 +110,10 @@ public actor LiveSenseKitAppService: SenseKitAppService {
         )
     }
 
-    public func sendTestEvent(_ eventType: ContextEventType) async throws {
+    public func sendTestScenario(_ scenario: SignalTestScenario) async throws {
         let configuration = try await settingsStore.load()
         let coordinator = makeCoordinator(configuration: configuration)
-        _ = try await coordinator.sendTestEvent(eventType)
+        _ = try await coordinator.sendTestScenario(scenario)
     }
 
     public func captureCurrentRegion(identifier: String, radiusMeters: Double) async throws -> RegionConfiguration {
@@ -181,8 +178,6 @@ public actor LiveSenseKitAppService: SenseKitAppService {
             PassiveWakeRuntimeController(
                 store: store,
                 settingsStore: settingsStore,
-                snapshotEnricher: snapshotEnricher,
-                policyEngine: policyEngine,
                 deliveryClient: deliveryClient,
                 clock: clock
             )
@@ -200,13 +195,28 @@ public actor LiveSenseKitAppService: SenseKitAppService {
             LocationRuntimeController(
                 store: store,
                 settingsStore: settingsStore,
-                snapshotEnricher: snapshotEnricher,
-                policyEngine: policyEngine,
                 deliveryClient: deliveryClient,
                 clock: clock
             )
         }
         locationRuntime = controller
+        return controller
+    }
+
+    private func ensureHealthRuntime() async -> HealthRuntimeController {
+        if let healthRuntime {
+            return healthRuntime
+        }
+
+        let controller = await MainActor.run {
+            HealthRuntimeController(
+                store: store,
+                settingsStore: settingsStore,
+                deliveryClient: deliveryClient,
+                clock: clock
+            )
+        }
+        healthRuntime = controller
         return controller
     }
 
@@ -234,13 +244,9 @@ public actor LiveSenseKitAppService: SenseKitAppService {
         return resolver
     }
 
-    private func makeCoordinator(configuration: RuntimeConfiguration) -> BackgroundWakeCoordinator {
-        let engine = CorroborationEngine(store: store, configuration: configuration, clock: clock)
+    private func makeCoordinator(configuration _: RuntimeConfiguration) -> BackgroundWakeCoordinator {
         return BackgroundWakeCoordinator(
             store: store,
-            engine: engine,
-            snapshotEnricher: snapshotEnricher,
-            policyEngine: policyEngine,
             deliveryClient: deliveryClient,
             settingsStore: settingsStore,
             clock: clock

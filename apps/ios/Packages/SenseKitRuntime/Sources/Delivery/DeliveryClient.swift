@@ -34,8 +34,12 @@ public actor DeliveryClient {
         self.session = session
     }
 
-    public func deliver(_ envelope: SenseKitEventEnvelope, configuration: OpenClawConfiguration) async throws -> DeliveryResult {
-        let request = try adapter.makeRequest(envelope: envelope, configuration: configuration)
+    public func deliver(_ batch: SenseKitSignalBatch, configuration: OpenClawConfiguration) async throws -> DeliveryResult {
+        let request = try adapter.makeRequest(batch: batch, configuration: configuration)
+        return try await perform(request: request)
+    }
+
+    private func perform(request: URLRequest) async throws -> DeliveryResult {
         let (data, response) = try await session.data(for: request)
         guard let response = response as? HTTPURLResponse else {
             throw DeliveryClientError.invalidHTTPResponse

@@ -332,7 +332,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = DC9L4X56V4;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCalendarsUsageDescription = "SenseKit reads minimal calendar context to enrich event snapshots.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "SenseKit reads workout events so it can send workout follow-ups.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "SenseKit uses location to monitor home/work arrival and departure in the background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SenseKit uses location to improve driving accuracy and detect home/work arrival.";
@@ -364,7 +363,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = DC9L4X56V4;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCalendarsUsageDescription = "SenseKit reads minimal calendar context to enrich event snapshots.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "SenseKit reads workout events so it can send workout follow-ups.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "SenseKit uses location to monitor home/work arrival and departure in the background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "SenseKit uses location to improve driving accuracy and detect home/work arrival.";

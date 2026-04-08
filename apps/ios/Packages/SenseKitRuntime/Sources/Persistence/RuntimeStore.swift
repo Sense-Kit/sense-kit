@@ -158,7 +158,7 @@ public actor SQLiteRuntimeStore: RuntimeStore {
         let json = try encode(item)
         try withStatement(sql) { statement in
             bindText(item.id, at: 1, in: statement)
-            bindText(item.eventType.rawValue, at: 2, in: statement)
+            bindText(item.eventType, at: 2, in: statement)
             bindText(item.status.rawValue, at: 3, in: statement)
             sqlite3_bind_int(statement, 4, Int32(item.attempt))
             sqlite3_bind_double(statement, 5, item.queuedAt.timeIntervalSince1970)
@@ -211,7 +211,10 @@ public actor SQLiteRuntimeStore: RuntimeStore {
             while sqlite3_step(statement) == SQLITE_ROW {
                 let id = stringValue(from: statement, column: 0) ?? UUID().uuidString
                 let createdAt = Date(timeIntervalSince1970: sqlite3_column_double(statement, 1))
-                let category = TimelineCategory(rawValue: stringValue(from: statement, column: 2) ?? "") ?? .evaluation
+                let rawCategory = stringValue(from: statement, column: 2) ?? ""
+                let category = rawCategory == "event"
+                    ? .scenario
+                    : TimelineCategory(rawValue: rawCategory) ?? .evaluation
                 let message = stringValue(from: statement, column: 3) ?? ""
                 let payload = stringValue(from: statement, column: 4)
                 entries.append(

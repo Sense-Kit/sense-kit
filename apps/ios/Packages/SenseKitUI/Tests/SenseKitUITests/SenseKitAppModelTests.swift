@@ -22,12 +22,12 @@ struct SenseKitAppModelTests {
             wakeCollectorStatus: .running,
             locationCollectorStatus: .running,
             timelineEntries: [
-                DebugTimelineEntry(createdAt: Date(), category: .event, message: "Manual test event driving_started")
+                DebugTimelineEntry(createdAt: Date(), category: .scenario, message: "Manual test scenario driving_signals")
             ],
             auditEntries: [
                 AuditLogEntry(
                     createdAt: Date(),
-                    eventType: "driving_started",
+                    eventType: "manual.driving_signals",
                     destination: "https://example.ts.net/hooks/sensekit",
                     status: .delivered,
                     payloadSummary: "HTTP 200",
@@ -224,7 +224,7 @@ struct SenseKitAppModelTests {
     }
 
     @Test
-    func sendTestEventCallsServiceAndRefreshesEntries() async throws {
+    func sendTestScenarioCallsServiceAndRefreshesEntries() async throws {
         let initialState = SenseKitLoadedState(
             configuration: RuntimeConfiguration(
                 deviceID: "device-1",
@@ -245,12 +245,12 @@ struct SenseKitAppModelTests {
                 )
             ),
             timelineEntries: [
-                DebugTimelineEntry(createdAt: Date(), category: .event, message: "Manual test event driving_started")
+                DebugTimelineEntry(createdAt: Date(), category: .scenario, message: "Manual test scenario driving_signals")
             ],
             auditEntries: [
                 AuditLogEntry(
                     createdAt: Date(),
-                    eventType: "driving_started",
+                    eventType: "manual.driving_signals",
                     destination: "https://example.ts.net/hooks/sensekit",
                     status: .delivered,
                     payloadSummary: "HTTP 200",
@@ -261,17 +261,17 @@ struct SenseKitAppModelTests {
         let service = FakeSenseKitAppService(initialState: initialState)
         let model = SenseKitAppModel(service: service)
         await model.load()
-        model.selectedTestEvent = .drivingStarted
+        model.selectedTestScenario = .drivingSignals
         await service.setNextLoadedState(refreshedState)
 
-        await model.sendTestEvent()
+        await model.sendTestScenario()
 
-        let sentEvents = await service.sentTestEvents
-        #expect(sentEvents == [.drivingStarted])
+        let sentScenarios = await service.sentTestScenarios
+        #expect(sentScenarios == [.drivingSignals])
         #expect(model.timelineEntries.count == 1)
         #expect(model.auditEntries.count == 1)
         #expect(model.feedback?.style == .success)
-        #expect(model.feedback?.message == "Test event sent. Check Timeline and Audit for the result.")
+        #expect(model.feedback?.message == "Test scenario sent. Check Timeline and Audit for the result.")
     }
 
     @Test
@@ -292,19 +292,19 @@ struct SenseKitAppModelTests {
     }
 
     @Test
-    func sendTestEventWithoutConfigurationShowsMeaningfulError() async throws {
+    func sendTestScenarioWithoutConfigurationShowsMeaningfulError() async throws {
         let service = FakeSenseKitAppService(
             initialState: SenseKitLoadedState(configuration: RuntimeConfiguration(deviceID: "device-1"))
         )
         let model = SenseKitAppModel(service: service)
 
-        await model.sendTestEvent()
+        await model.sendTestScenario()
 
-        let sentEvents = await service.sentTestEvents
-        #expect(sentEvents.isEmpty)
+        let sentScenarios = await service.sentTestScenarios
+        #expect(sentScenarios.isEmpty)
         #expect(model.connectionStatus == "Configure OpenClaw first")
         #expect(model.feedback?.style == .error)
-        #expect(model.feedback?.message == "Save the OpenClaw connection before sending a test event.")
+        #expect(model.feedback?.message == "Save the OpenClaw connection before sending a test scenario.")
     }
 
     @Test
@@ -853,16 +853,16 @@ struct EntryCopyFormatterTests {
     func timelineEntryCopyTextIncludesPayloadWhenPresent() {
         let entry = DebugTimelineEntry(
             createdAt: Date(timeIntervalSince1970: 1_775_520_000),
-            category: .event,
-            message: "Manual test event driving_started",
+            category: .scenario,
+            message: "Manual test scenario driving_signals",
             payload: "score=0.70"
         )
 
         let text = EntryCopyFormatter.timelineEntry(entry)
 
         #expect(text.contains("type: timeline"))
-        #expect(text.contains("category: event"))
-        #expect(text.contains("message: Manual test event driving_started"))
+        #expect(text.contains("category: scenario"))
+        #expect(text.contains("message: Manual test scenario driving_signals"))
         #expect(text.contains("payload: score=0.70"))
     }
 
@@ -881,7 +881,7 @@ struct EntryCopyFormatterTests {
 private actor FakeSenseKitAppService: SenseKitAppService {
     private var currentState: SenseKitLoadedState
     private(set) var savedConfigurations: [RuntimeConfiguration] = []
-    private(set) var sentTestEvents: [ContextEventType] = []
+    private(set) var sentTestScenarios: [SignalTestScenario] = []
     private let currentRegionResult: RegionConfiguration?
     private let searchRegionResult: RegionConfiguration?
     private let suggestionRegionResult: RegionConfiguration?
@@ -921,8 +921,8 @@ private actor FakeSenseKitAppService: SenseKitAppService {
         )
     }
 
-    func sendTestEvent(_ eventType: ContextEventType) async throws {
-        sentTestEvents.append(eventType)
+    func sendTestScenario(_ scenario: SignalTestScenario) async throws {
+        sentTestScenarios.append(scenario)
     }
 
     func captureCurrentRegion(identifier: String, radiusMeters: Double) async throws -> RegionConfiguration {

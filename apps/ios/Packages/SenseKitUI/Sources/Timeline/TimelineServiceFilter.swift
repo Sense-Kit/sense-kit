@@ -7,7 +7,7 @@ public enum TimelineServiceFilter: String, CaseIterable, Sendable {
     case settings
     case motion
     case location
-    case rules
+    case processing
     case delivery
 
     public var title: String {
@@ -22,8 +22,8 @@ public enum TimelineServiceFilter: String, CaseIterable, Sendable {
             return "Motion"
         case .location:
             return "Location"
-        case .rules:
-            return "Rules"
+        case .processing:
+            return "Processing"
         case .delivery:
             return "Delivery"
         }
@@ -41,8 +41,8 @@ public enum TimelineServiceFilter: String, CaseIterable, Sendable {
             return Self.inferredService(for: entry) == .motion
         case .location:
             return Self.inferredService(for: entry) == .location
-        case .rules:
-            return Self.inferredService(for: entry) == .rules
+        case .processing:
+            return Self.inferredService(for: entry) == .processing
         case .delivery:
             return Self.inferredService(for: entry) == .delivery
         }
@@ -50,7 +50,7 @@ public enum TimelineServiceFilter: String, CaseIterable, Sendable {
 
     public static func availableFilters(for entries: [DebugTimelineEntry]) -> [TimelineServiceFilter] {
         let present = Set(entries.map(inferredService))
-        return [.all] + [.runtime, .settings, .motion, .location, .rules, .delivery].filter { present.contains($0) }
+        return [.all] + [.runtime, .settings, .motion, .location, .processing, .delivery].filter { present.contains($0) }
     }
 
     static func inferredService(for entry: DebugTimelineEntry) -> TimelineServiceFilter {
@@ -85,8 +85,8 @@ public enum TimelineServiceFilter: String, CaseIterable, Sendable {
             return .delivery
         }
 
-        if entry.category == .event || entry.category == .evaluation {
-            return .rules
+        if entry.category == .scenario || entry.category == .evaluation {
+            return .processing
         }
 
         return .runtime

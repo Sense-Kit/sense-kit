@@ -17,6 +17,7 @@ public final class LocationCollector: NSObject, LocationSignalCollecting {
     }
 
     public func start() async {
+        manager.allowsBackgroundLocationUpdates = true
         manager.startMonitoringSignificantLocationChanges()
 
         for region in configuration.monitoredRegions {
@@ -41,134 +42,11 @@ public final class LocationCollector: NSObject, LocationSignalCollecting {
 @MainActor
 extension LocationCollector: @preconcurrency CLLocationManagerDelegate {
     public func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
-        Task {
-            let observedAt = Date()
-
-            if region.identifier == configuration.homeRegion?.identifier {
-                await signalHandler(
-                    ContextSignal(
-                        signalKey: "location.region_enter_home",
-                        source: "corelocation_region",
-                        weight: 0.85,
-                        polarity: .support,
-                        observedAt: observedAt,
-                        validForSec: 180
-                    )
-                )
-                await signalHandler(
-                    ContextSignal(
-                        signalKey: "place.arrived_home_or_work",
-                        source: "corelocation_region",
-                        weight: 0.10,
-                        polarity: .support,
-                        observedAt: observedAt,
-                        validForSec: 180
-                    )
-                )
-                return
-            }
-
-            if region.identifier == configuration.workRegion?.identifier {
-                await signalHandler(
-                    ContextSignal(
-                        signalKey: "location.region_enter_work",
-                        source: "corelocation_region",
-                        weight: 0.85,
-                        polarity: .support,
-                        observedAt: observedAt,
-                        validForSec: 180
-                    )
-                )
-                await signalHandler(
-                    ContextSignal(
-                        signalKey: "place.arrived_home_or_work",
-                        source: "corelocation_region",
-                        weight: 0.10,
-                        polarity: .support,
-                        observedAt: observedAt,
-                        validForSec: 180
-                    )
-                )
-                return
-            }
-
-            guard let place = configuration.region(for: region.identifier) else {
-                return
-            }
-
-            await signalHandler(
-                ContextSignal(
-                    signalKey: "location.region_enter_place",
-                    source: "corelocation_region",
-                    weight: 0.85,
-                    polarity: .support,
-                    observedAt: observedAt,
-                    validForSec: 180,
-                    payload: placePayload(from: place)
-                )
-            )
-            await signalHandler(
-                ContextSignal(
-                    signalKey: "place.arrived_saved_place",
-                    source: "corelocation_region",
-                    weight: 0.10,
-                    polarity: .support,
-                    observedAt: observedAt,
-                    validForSec: 180,
-                    payload: placePayload(from: place)
-                )
-            )
-        }
+        emitRegionSignal(kind: "enter", region: region)
     }
 
     public func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
-        Task {
-            let observedAt = Date()
-
-            if region.identifier == configuration.homeRegion?.identifier {
-                await signalHandler(
-                    ContextSignal(
-                        signalKey: "location.region_exit_home",
-                        source: "corelocation_region",
-                        weight: 0.85,
-                        polarity: .support,
-                        observedAt: observedAt,
-                        validForSec: 180
-                    )
-                )
-                return
-            }
-
-            if region.identifier == configuration.workRegion?.identifier {
-                await signalHandler(
-                    ContextSignal(
-                        signalKey: "location.region_exit_work",
-                        source: "corelocation_region",
-                        weight: 0.85,
-                        polarity: .support,
-                        observedAt: observedAt,
-                        validForSec: 180
-                    )
-                )
-                return
-            }
-
-            guard let place = configuration.region(for: region.identifier) else {
-                return
-            }
-
-            await signalHandler(
-                ContextSignal(
-                    signalKey: "location.region_exit_place",
-                    source: "corelocation_region",
-                    weight: 0.85,
-                    polarity: .support,
-                    observedAt: observedAt,
-                    validForSec: 180,
-                    payload: placePayload(from: place)
-                )
-            )
-        }
+        emitRegionSignal(kind: "exit", region: region)
     }
 
     public func locationManager(_ manager: CLLocationManager, didDetermineState state: CLRegionState, for region: CLRegion) {
@@ -186,71 +64,24 @@ extension LocationCollector: @preconcurrency CLLocationManagerDelegate {
 
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
+        let observedAt = Date()
         let speedMetersPerSecond = max(location.speed, 0)
         let speedKilometersPerHour = speedMetersPerSecond * 3.6
 
         Task {
-            if configuration.drivingLocationBoostEnabled, speedKilometersPerHour >= 18 {
-                await signalHandler(
-                    ContextSignal(
-                        signalKey: "location.speed_above_18_kmh",
-                        source: "corelocation_significant_change",
-                        weight: 0.10,
-                        polarity: .support,
-                        observedAt: Date(),
-                        validForSec: 120,
-                        payload: ["speed_kmh": .number(speedKilometersPerHour)]
-                    )
+            await signalHandler(
+                ContextSignal(
+                    signalKey: "location.location_observed",
+                    collector: .location,
+                    source: "corelocation_significant_change",
+                    weight: 1.0,
+                    polarity: .support,
+                    observedAt: observedAt,
+                    receivedAt: observedAt,
+                    validForSec: 300,
+                    payload: locationPayload(from: location, speedKilometersPerHour: speedKilometersPerHour)
                 )
-                await signalHandler(
-                    ContextSignal(
-                        signalKey: "location.significant_change_while_automotive",
-                        source: "corelocation_significant_change",
-                        weight: 0.10,
-                        polarity: .support,
-                        observedAt: Date(),
-                        validForSec: 300,
-                        payload: ["speed_kmh": .number(speedKilometersPerHour)]
-                    )
-                )
-            }
-
-            if speedKilometersPerHour < 5 {
-                await signalHandler(
-                    ContextSignal(
-                        signalKey: "location.speed_below_5_kmh_sustained_120s",
-                        source: "corelocation_significant_change",
-                        weight: 0.10,
-                        polarity: .support,
-                        observedAt: Date(),
-                        validForSec: 120
-                    )
-                )
-            }
-
-            if speedKilometersPerHour < 8 {
-                await signalHandler(
-                    ContextSignal(
-                        signalKey: "location.speed_below_8_kmh",
-                        source: "corelocation_significant_change",
-                        weight: 0.05,
-                        polarity: .support,
-                        observedAt: Date(),
-                        validForSec: 90
-                    )
-                )
-            } else if speedKilometersPerHour > 40 {
-                await signalHandler(
-                    ContextSignal(
-                        signalKey: "location.speed_high",
-                        source: "corelocation_significant_change",
-                        weight: 0.20,
-                        polarity: .oppose,
-                        observedAt: Date(),
-                        validForSec: 90
-                    )
-                )
-            }
+            )
         }
     }
 
@@ -262,16 +93,79 @@ extension LocationCollector: @preconcurrency CLLocationManagerDelegate {
         return region
     }
 
-    private func placePayload(from region: RegionConfiguration) -> [String: JSONValue] {
+    private func emitRegionSignal(kind: String, region: CLRegion) {
+        guard let place = configuration.region(for: region.identifier) else {
+            return
+        }
+
+        let observedAt = Date()
+
+        Task {
+            await signalHandler(
+                ContextSignal(
+                    signalKey: "location.region_state_changed",
+                    collector: .location,
+                    source: "corelocation_region",
+                    weight: 1.0,
+                    polarity: .support,
+                    observedAt: observedAt,
+                    receivedAt: observedAt,
+                    validForSec: 180,
+                    payload: placePayload(from: place, transition: kind)
+                )
+            )
+        }
+    }
+
+    private func locationPayload(from location: CLLocation, speedKilometersPerHour: Double) -> [String: JSONValue] {
         var payload: [String: JSONValue] = [
-            "place_identifier": .string(region.identifier)
+            "horizontal_accuracy_m": .number(location.horizontalAccuracy),
+            "vertical_accuracy_m": .number(location.verticalAccuracy),
+            "speed_mps": .number(max(location.speed, 0)),
+            "speed_kmh": .number(speedKilometersPerHour),
+            "course_deg": .number(location.course),
+            "altitude_m": .number(location.altitude),
+            "timestamp": .string(ISO8601DateFormatter().string(from: location.timestamp))
+        ]
+
+        if configuration.placeSharingMode == .preciseCoordinates {
+            payload["latitude"] = .number(location.coordinate.latitude)
+            payload["longitude"] = .number(location.coordinate.longitude)
+        }
+
+        return payload
+    }
+
+    private func placePayload(from region: RegionConfiguration, transition: String) -> [String: JSONValue] {
+        var payload: [String: JSONValue] = [
+            "transition": .string(transition),
+            "place_identifier": .string(region.identifier),
+            "place_type": .string(placeType(for: region.identifier).rawValue),
+            "radius_m": .number(region.radiusMeters)
         ]
 
         if let displayName = region.displayName, !displayName.isEmpty {
             payload["place_name"] = .string(displayName)
         }
 
+        if configuration.placeSharingMode == .preciseCoordinates {
+            payload["latitude"] = .number(region.latitude)
+            payload["longitude"] = .number(region.longitude)
+        }
+
         return payload
+    }
+
+    private func placeType(for identifier: String) -> PlaceType {
+        if identifier == configuration.homeRegion?.identifier {
+            return .home
+        }
+
+        if identifier == configuration.workRegion?.identifier {
+            return .work
+        }
+
+        return .custom
     }
 }
 #else

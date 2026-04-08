@@ -226,33 +226,34 @@ public struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Boost Precision") {
-                Label("Wake boost via Shortcuts", systemImage: "bolt.circle")
-                Label("Workout boost via Shortcuts", systemImage: "bolt.circle")
-                Label("Focus on/off via Shortcuts", systemImage: "bolt.circle")
+            Section("Passive Signals") {
+                Label("Motion activity from Core Motion", systemImage: "figure.walk.motion")
+                Label("Location changes from Core Location", systemImage: "location")
+                Label("Power state from UIDevice", systemImage: "battery.100")
+                Label("Workout samples from HealthKit", systemImage: "heart.text.square")
             }
 
             Section("Bench Test") {
-                Picker("Test Event", selection: $model.selectedTestEvent) {
-                    ForEach(testableEvents, id: \.self) { eventType in
-                        Text(label(for: eventType)).tag(eventType)
+                Picker("Test Scenario", selection: $model.selectedTestScenario) {
+                    ForEach(testableScenarios, id: \.self) { scenario in
+                        Text(label(for: scenario)).tag(scenario)
                     }
                 }
 
                 Button {
                     dismissInput()
                     Task {
-                        await model.sendTestEvent()
+                        await model.sendTestScenario()
                     }
                 } label: {
                     ActionButtonLabel(
-                        title: "Send Test Event",
-                        isRunning: model.isSendingTestEvent
+                        title: "Send Test Scenario",
+                        isRunning: model.isSendingTestScenario
                     )
                 }
                 .disabled(model.isBusy || model.endpointURLText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-                Text("This uses the real queue, audit log, and OpenClaw delivery path before passive collectors are fully wired.")
+                Text("This sends a small raw-signal scenario through the real queue, audit log, and OpenClaw delivery path.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -271,22 +272,20 @@ public struct SettingsView: View {
         .settingsKeyboardDismissSupport(dismissInput)
     }
 
-    private var testableEvents: [ContextEventType] {
-        [.wakeConfirmed, .drivingStarted, .arrivedPlace, .workoutEnded]
+    private var testableScenarios: [SignalTestScenario] {
+        [.wakeSignals, .drivingSignals, .placeArrival, .workoutFinished]
     }
 
-    private func label(for eventType: ContextEventType) -> String {
-        switch eventType {
-        case .wakeConfirmed:
-            return "Wake Confirmed"
-        case .drivingStarted:
-            return "Driving Started"
-        case .arrivedPlace:
-            return "Arrived at Place"
-        case .workoutEnded:
-            return "Workout Ended"
-        default:
-            return eventType.rawValue.replacingOccurrences(of: "_", with: " ").capitalized
+    private func label(for scenario: SignalTestScenario) -> String {
+        switch scenario {
+        case .wakeSignals:
+            return "Wake Signals"
+        case .drivingSignals:
+            return "Driving Signals"
+        case .placeArrival:
+            return "Place Arrival"
+        case .workoutFinished:
+            return "Workout Finished"
         }
     }
 

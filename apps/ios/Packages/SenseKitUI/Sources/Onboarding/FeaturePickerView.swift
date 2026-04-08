@@ -549,27 +549,27 @@ public struct FeaturePickerView: View {
                     .disabled(model.isBusy)
 
                     if !model.showsOpenClawSetupGuide {
-                        Picker("Test Event", selection: $model.selectedTestEvent) {
-                            Text("Wake Confirmed").tag(ContextEventType.wakeConfirmed)
-                            Text("Driving Started").tag(ContextEventType.drivingStarted)
-                            Text("Arrived at Place").tag(ContextEventType.arrivedPlace)
-                            Text("Workout Ended").tag(ContextEventType.workoutEnded)
+                        Picker("Test Scenario", selection: $model.selectedTestScenario) {
+                            Text("Wake Signals").tag(SignalTestScenario.wakeSignals)
+                            Text("Driving Signals").tag(SignalTestScenario.drivingSignals)
+                            Text("Place Arrival").tag(SignalTestScenario.placeArrival)
+                            Text("Workout Finished").tag(SignalTestScenario.workoutFinished)
                         }
 
                         Button {
                             dismissInput()
                             Task {
-                                await model.sendTestEvent()
+                                await model.sendTestScenario()
                             }
                         } label: {
                             SetupActionLabel(
-                                title: "Send Test Event",
-                                isRunning: model.isSendingTestEvent
+                                title: "Send Test Scenario",
+                                isRunning: model.isSendingTestScenario
                             )
                         }
                         .disabled(model.isBusy)
 
-                        Text("This uses the live queue, audit log, and OpenClaw delivery path so you can verify the whole path before waiting for a real event.")
+                        Text("This uses the live queue, audit log, and OpenClaw delivery path so you can verify the whole path before waiting for real sensor data.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }

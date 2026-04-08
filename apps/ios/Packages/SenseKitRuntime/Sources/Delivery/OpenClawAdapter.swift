@@ -4,8 +4,11 @@ import Foundation
 public struct OpenClawAdapter: Sendable {
     public init() {}
 
-    public func makeRequest(envelope: SenseKitEventEnvelope, configuration: OpenClawConfiguration) throws -> URLRequest {
-        let body = try JSONCoding.encoder.encode(envelope)
+    public func makeRequest(batch: SenseKitSignalBatch, configuration: OpenClawConfiguration) throws -> URLRequest {
+        try makeRequest(body: JSONCoding.encoder.encode(batch), configuration: configuration)
+    }
+
+    private func makeRequest(body: Data, configuration: OpenClawConfiguration) throws -> URLRequest {
         let timestamp = ISO8601DateFormatter().string(from: Date())
         let signature = hmac(body: body, timestamp: timestamp, secret: configuration.hmacSecret)
 
@@ -26,4 +29,3 @@ public struct OpenClawAdapter: Sendable {
         return Data(signature).map { String(format: "%02x", $0) }.joined()
     }
 }
-

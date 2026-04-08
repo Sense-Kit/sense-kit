@@ -5,7 +5,7 @@ import SenseKitRuntime
 public enum SettingsBusyAction: Sendable {
     case loading
     case savingConfiguration
-    case sendingTestEvent
+    case sendingTestScenario
     case capturingFixedPlace
     case searchingFixedPlace
     case capturingHomeRegion
@@ -35,7 +35,7 @@ public final class SenseKitAppModel {
     public var workSearchQuery: String
     public var homeRadiusMeters: Double
     public var workRadiusMeters: Double
-    public var selectedTestEvent: ContextEventType
+    public var selectedTestScenario: SignalTestScenario
     public var placeSearchSuggestions: [PlaceSearchSuggestion]
     public var placeSearchSuggestionsQuery: String?
     public var isLoadingPlaceSearchSuggestions: Bool
@@ -69,7 +69,7 @@ public final class SenseKitAppModel {
         workSearchQuery: String = "",
         homeRadiusMeters: Double = 150,
         workRadiusMeters: Double = 150,
-        selectedTestEvent: ContextEventType = .drivingStarted,
+        selectedTestScenario: SignalTestScenario = .drivingSignals,
         placeSearchSuggestions: [PlaceSearchSuggestion] = [],
         placeSearchSuggestionsQuery: String? = nil,
         isLoadingPlaceSearchSuggestions: Bool = false,
@@ -98,7 +98,7 @@ public final class SenseKitAppModel {
         self.workSearchQuery = workSearchQuery
         self.homeRadiusMeters = homeRadiusMeters
         self.workRadiusMeters = workRadiusMeters
-        self.selectedTestEvent = selectedTestEvent
+        self.selectedTestScenario = selectedTestScenario
         self.placeSearchSuggestions = placeSearchSuggestions
         self.placeSearchSuggestionsQuery = placeSearchSuggestionsQuery
         self.isLoadingPlaceSearchSuggestions = isLoadingPlaceSearchSuggestions
@@ -218,27 +218,27 @@ public final class SenseKitAppModel {
         }
     }
 
-    public func sendTestEvent() async {
+    public func sendTestScenario() async {
         guard !isBusy else { return }
         guard configuration.openClaw != nil else {
-            setError(status: "Configure OpenClaw first", message: "Save the OpenClaw connection before sending a test event.")
+            setError(status: "Configure OpenClaw first", message: "Save the OpenClaw connection before sending a test scenario.")
             return
         }
 
         isBusy = true
-        busyAction = .sendingTestEvent
+        busyAction = .sendingTestScenario
         defer {
             isBusy = false
             busyAction = nil
         }
 
         do {
-            try await service.sendTestEvent(selectedTestEvent)
+            try await service.sendTestScenario(selectedTestScenario)
             let state = try await service.loadState()
             apply(state)
-            setSuccess(message: "Test event sent. Check Timeline and Audit for the result.")
+            setSuccess(message: "Test scenario sent. Check Timeline and Audit for the result.")
         } catch {
-            setError(status: "Test event failed", message: error.localizedDescription)
+            setError(status: "Test scenario failed", message: error.localizedDescription)
         }
     }
 
@@ -449,12 +449,12 @@ public final class SenseKitAppModel {
             locationCollectorStatus: .running,
             timelineEntries: [
                 DebugTimelineEntry(createdAt: Date(), category: .signal, message: "Received signal motion.automotive_entered"),
-                DebugTimelineEntry(createdAt: Date(), category: .event, message: "Emitted driving_started")
+                DebugTimelineEntry(createdAt: Date(), category: .scenario, message: "Manual test scenario driving_signals")
             ],
             auditEntries: [
                 AuditLogEntry(
                     createdAt: Date(),
-                    eventType: "driving_started",
+                    eventType: "manual.driving_signals",
                     destination: "https://gateway.example/hooks/sensekit",
                     status: .delivered,
                     payloadSummary: "HTTP 200",
@@ -635,7 +635,7 @@ public final class SenseKitAppModel {
     }
 
     public var isSavingConfiguration: Bool { busyAction == .savingConfiguration }
-    public var isSendingTestEvent: Bool { busyAction == .sendingTestEvent }
+    public var isSendingTestScenario: Bool { busyAction == .sendingTestScenario }
     public var isCapturingFixedPlace: Bool { busyAction == .capturingFixedPlace }
     public var isSearchingFixedPlace: Bool { busyAction == .searchingFixedPlace }
     public var isCapturingHomeRegion: Bool { busyAction == .capturingHomeRegion }
@@ -955,7 +955,7 @@ private actor PreviewSenseKitAppService: SenseKitAppService {
 
     func saveConfiguration(_ configuration: RuntimeConfiguration) async throws {}
 
-    func sendTestEvent(_ eventType: ContextEventType) async throws {}
+    func sendTestScenario(_ scenario: SignalTestScenario) async throws {}
 
     func captureCurrentRegion(identifier: String, radiusMeters: Double) async throws -> RegionConfiguration {
         RegionConfiguration(identifier: identifier, latitude: 47.3769, longitude: 8.5417, radiusMeters: radiusMeters)

@@ -3,12 +3,13 @@ import XCTest
 @testable import SenseKitRuntime
 
 final class BackgroundWakeCoordinatorTests: XCTestCase {
-    func testSendTestEventDeliversAndWritesAuditAndTimeline() async throws {
+    func testSendTestScenarioDeliversDrivingSignalsAsRawSignalBatch() async throws {
         let clock = FixedClock(currentDate: date(hour: 12, minute: 15))
         let store = TestRuntimeStore()
         let settingsStore = InMemorySettingsStore(
             configuration: RuntimeConfiguration(
                 deviceID: "test-device",
+                placeSharingMode: .preciseCoordinates,
                 openClaw: OpenClawConfiguration(
                     endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
                     bearerToken: "bearer-token",
@@ -31,56 +32,36 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
             return (response, Data(#"{"ok":true}"#.utf8))
         }
 
-        let sessionConfiguration = URLSessionConfiguration.ephemeral
-        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
-        let session = URLSession(configuration: sessionConfiguration)
-        let healthSnapshot = makeHealthSnapshot(capturedAt: clock.now())
+        let coordinator = makeCoordinator(clock: clock, store: store, settingsStore: settingsStore, statusCode: 200)
 
-        let coordinator = BackgroundWakeCoordinator(
-            store: store,
-            engine: CorroborationEngine(
-                store: store,
-                configuration: RuntimeConfiguration(deviceID: "test-device"),
-                clock: clock
-            ),
-            snapshotEnricher: SnapshotEnricher(
-                provider: DefaultSnapshotProvider(),
-                healthProvider: StubHealthSnapshotProvider(health: healthSnapshot)
-            ),
-            policyEngine: PolicyEngine(),
-            deliveryClient: DeliveryClient(session: session),
-            settingsStore: settingsStore,
-            clock: clock
-        )
+        let result = try await coordinator.sendTestScenario(.drivingSignals)
 
-        let result = try await coordinator.sendTestEvent(.drivingStarted)
-
-        XCTAssertEqual(result.event.eventType, .drivingStarted)
-        XCTAssertEqual(result.event.confidence, 1.0)
-        XCTAssertEqual(result.event.reasons, ["manual.test_button"])
+        XCTAssertEqual(result.deliveryLabel, "manual.driving_signals")
+        XCTAssertEqual(result.signalBatch.signals.count, 2)
+        XCTAssertEqual(result.signalBatch.signals[0].signalKey, "motion.activity_observed")
+        XCTAssertEqual(result.signalBatch.signals[1].signalKey, "location.location_observed")
 
         let auditEntries = try await store.auditEntries(limit: 10)
         XCTAssertEqual(auditEntries.count, 2)
         XCTAssertEqual(auditEntries[0].status, .queued)
         XCTAssertEqual(auditEntries[1].status, .delivered)
-        XCTAssertEqual(auditEntries[1].destination, "https://example.com/hooks/sensekit")
-
-        let timelineEntries = try await store.timelineEntries(limit: 10)
-        XCTAssertTrue(timelineEntries.contains { $0.message.contains("Manual test event driving_started") })
-
-        let state = try await store.loadRuntimeState()
-        XCTAssertTrue(state.isDriving)
+        XCTAssertEqual(auditEntries[1].eventType, "manual.driving_signals")
 
         let request = await MockURLProtocol.lastRequest()
-        let deliveredRequest = try XCTUnwrap(request)
-        let deliveredBody = try XCTUnwrap(requestBody(from: deliveredRequest))
-        let deliveredEnvelope = try JSONCoding.decoder.decode(SenseKitEventEnvelope.self, from: deliveredBody)
-        XCTAssertEqual(deliveredEnvelope.snapshot.health, healthSnapshot)
-        XCTAssertEqual(deliveredEnvelope.snapshot.health.nutrition.proteinRemainingG, 42)
+        let deliveredBody = try XCTUnwrap(requestBody(from: try XCTUnwrap(request)))
+        let deliveredBatch = try JSONCoding.decoder.decode(SenseKitSignalBatch.self, from: deliveredBody)
+        XCTAssertEqual(deliveredBatch.schemaVersion, "sensekit.signal_batch.v1")
+        XCTAssertEqual(deliveredBatch.device.deviceID, "test-device")
+        XCTAssertEqual(deliveredBatch.device.placeSharingMode, .preciseCoordinates)
+        XCTAssertEqual(deliveredBatch.signals.count, 2)
+        XCTAssertEqual(deliveredBatch.signals[0].collector, .manual)
+        XCTAssertEqual(deliveredBatch.signals[1].collector, .manual)
+        XCTAssertNotNil(deliveredBatch.signals[1].payload["latitude"])
+        XCTAssertNotNil(deliveredBatch.signals[1].payload["longitude"])
     }
 
-    func testHandleWakeForRawMotionSignalDeliversDirectMotionEvent() async throws {
-        let clock = FixedClock(currentDate: date(hour: 12, minute: 18))
+    func testHandleWakeDeliversSingleRawSignalBatchAndUpdatesPlaceState() async throws {
+        let clock = FixedClock(currentDate: date(hour: 18, minute: 20))
         let store = TestRuntimeStore()
         let settingsStore = InMemorySettingsStore(
             configuration: RuntimeConfiguration(
@@ -94,10 +75,6 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
         )
 
         await MockURLProtocol.setRequestHandler { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://example.com/hooks/sensekit")
-            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer bearer-token")
-            XCTAssertEqual(request.httpMethod, "POST")
-
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -107,55 +84,136 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
             return (response, Data(#"{"ok":true}"#.utf8))
         }
 
-        let sessionConfiguration = URLSessionConfiguration.ephemeral
-        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
-        let session = URLSession(configuration: sessionConfiguration)
-
-        let coordinator = BackgroundWakeCoordinator(
-            store: store,
-            engine: CorroborationEngine(
-                store: store,
-                configuration: RuntimeConfiguration(deviceID: "test-device"),
-                clock: clock
-            ),
-            snapshotEnricher: SnapshotEnricher(),
-            policyEngine: PolicyEngine(),
-            deliveryClient: DeliveryClient(session: session),
-            settingsStore: settingsStore,
-            clock: clock
-        )
-
+        let coordinator = makeCoordinator(clock: clock, store: store, settingsStore: settingsStore, statusCode: 200)
         let results = try await coordinator.handleWake(
             signal: ContextSignal(
-                signalKey: MotionActivityObservation.signalKey,
-                source: "coremotion_activity",
+                signalKey: "location.region_state_changed",
+                source: "corelocation_region",
                 weight: 1.0,
                 polarity: .support,
                 observedAt: clock.now(),
-                validForSec: 1,
+                validForSec: 180,
                 payload: [
-                    "primary_kind": .string("walking"),
-                    "confidence": .string("high"),
-                    "flags": .array([.string("walking")])
+                    "transition": .string("enter"),
+                    "place_identifier": .string("place-gym"),
+                    "place_name": .string("Gym"),
+                    "place_type": .string("custom"),
+                    "radius_m": .number(150)
                 ]
             )
         )
 
         XCTAssertEqual(results.count, 1)
-        XCTAssertEqual(results[0].event.eventType, .motionActivityObserved)
-        XCTAssertEqual(results[0].event.confidence, 1.0)
-        XCTAssertEqual(results[0].event.reasons, ["motion.primary.walking", "motion.confidence.high", "motion.flag.walking"])
-
-        let timelineEntries = try await store.timelineEntries(limit: 10)
-        XCTAssertTrue(timelineEntries.contains { $0.message.contains("Received raw motion activity walking") })
-        XCTAssertFalse(timelineEntries.contains { $0.message.contains("Emitted motion_activity_observed") })
+        XCTAssertEqual(results[0].deliveryLabel, "location.region_state_changed")
+        XCTAssertEqual(results[0].signalBatch.signals.count, 1)
+        XCTAssertEqual(results[0].signalBatch.signals[0].collector, .location)
 
         let state = try await store.loadRuntimeState()
-        XCTAssertNil(state.lastWakeAt)
-        XCTAssertFalse(state.isDriving)
+        XCTAssertEqual(state.currentPlace, .custom)
+        XCTAssertEqual(state.currentPlaceIdentifier, "place-gym")
+        XCTAssertEqual(state.currentPlaceName, "Gym")
+
+        let timelineEntries = try await store.timelineEntries(limit: 20)
+        XCTAssertTrue(timelineEntries.contains { $0.message.contains("Received raw signal location.region_state_changed") })
+
+        let request = await MockURLProtocol.lastRequest()
+        let deliveredBody = try XCTUnwrap(requestBody(from: try XCTUnwrap(request)))
+        let deliveredBatch = try JSONCoding.decoder.decode(SenseKitSignalBatch.self, from: deliveredBody)
+        XCTAssertEqual(deliveredBatch.signals.count, 1)
+        XCTAssertEqual(deliveredBatch.signals[0].signalKey, "location.region_state_changed")
     }
 
-    func testSendTestEventMarksNon2xxResponsesAsFailedAndRetryable() async throws {
+    func testSendTestScenarioOmitsCoordinatesWhenPlaceSharingIsLabelsOnly() async throws {
+        let clock = FixedClock(currentDate: date(hour: 18, minute: 15))
+        let store = TestRuntimeStore()
+        let settingsStore = InMemorySettingsStore(
+            configuration: RuntimeConfiguration(
+                deviceID: "test-device",
+                placeSharingMode: .labelsOnly,
+                fixedPlaces: [
+                    .init(
+                        identifier: "place-gym",
+                        displayName: "Gym",
+                        latitude: 47.3769,
+                        longitude: 8.5417,
+                        radiusMeters: 150
+                    )
+                ],
+                openClaw: OpenClawConfiguration(
+                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
+                    bearerToken: "bearer-token",
+                    hmacSecret: "hmac-secret"
+                )
+            )
+        )
+
+        await MockURLProtocol.setRequestHandler { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(#"{"ok":true}"#.utf8))
+        }
+
+        let coordinator = makeCoordinator(clock: clock, store: store, settingsStore: settingsStore, statusCode: 200)
+        _ = try await coordinator.sendTestScenario(.placeArrival)
+
+        let request = await MockURLProtocol.lastRequest()
+        let deliveredBody = try XCTUnwrap(requestBody(from: try XCTUnwrap(request)))
+        let deliveredBatch = try JSONCoding.decoder.decode(SenseKitSignalBatch.self, from: deliveredBody)
+        let payload = deliveredBatch.signals[0].payload
+        XCTAssertNil(payload["latitude"])
+        XCTAssertNil(payload["longitude"])
+    }
+
+    func testSendTestScenarioIncludesCoordinatesWhenPlaceSharingIsPrecise() async throws {
+        let clock = FixedClock(currentDate: date(hour: 18, minute: 16))
+        let store = TestRuntimeStore()
+        let settingsStore = InMemorySettingsStore(
+            configuration: RuntimeConfiguration(
+                deviceID: "test-device",
+                placeSharingMode: .preciseCoordinates,
+                fixedPlaces: [
+                    .init(
+                        identifier: "place-gym",
+                        displayName: "Gym",
+                        latitude: 47.3769,
+                        longitude: 8.5417,
+                        radiusMeters: 150
+                    )
+                ],
+                openClaw: OpenClawConfiguration(
+                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
+                    bearerToken: "bearer-token",
+                    hmacSecret: "hmac-secret"
+                )
+            )
+        )
+
+        await MockURLProtocol.setRequestHandler { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(#"{"ok":true}"#.utf8))
+        }
+
+        let coordinator = makeCoordinator(clock: clock, store: store, settingsStore: settingsStore, statusCode: 200)
+        _ = try await coordinator.sendTestScenario(.placeArrival)
+
+        let request = await MockURLProtocol.lastRequest()
+        let deliveredBody = try XCTUnwrap(requestBody(from: try XCTUnwrap(request)))
+        let deliveredBatch = try JSONCoding.decoder.decode(SenseKitSignalBatch.self, from: deliveredBody)
+        let payload = deliveredBatch.signals[0].payload
+        XCTAssertEqual(payload["latitude"], .number(47.3769))
+        XCTAssertEqual(payload["longitude"], .number(8.5417))
+    }
+
+    func testSendTestScenarioMarksNon2xxResponsesAsFailedAndRetryable() async throws {
         let clock = FixedClock(currentDate: date(hour: 12, minute: 22))
         let store = TestRuntimeStore()
         let settingsStore = InMemorySettingsStore(
@@ -170,7 +228,6 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
         )
 
         await MockURLProtocol.setRequestHandler { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://example.com/hooks/sensekit")
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 502,
@@ -180,32 +237,15 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
             return (response, Data(#"{"ok":false,"error":"bad gateway"}"#.utf8))
         }
 
-        let sessionConfiguration = URLSessionConfiguration.ephemeral
-        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
-        let session = URLSession(configuration: sessionConfiguration)
+        let coordinator = makeCoordinator(clock: clock, store: store, settingsStore: settingsStore, statusCode: 502)
 
-        let coordinator = BackgroundWakeCoordinator(
-            store: store,
-            engine: CorroborationEngine(
-                store: store,
-                configuration: RuntimeConfiguration(deviceID: "test-device"),
-                clock: clock
-            ),
-            snapshotEnricher: SnapshotEnricher(),
-            policyEngine: PolicyEngine(),
-            deliveryClient: DeliveryClient(session: session),
-            settingsStore: settingsStore,
-            clock: clock
-        )
-
-        _ = try await coordinator.sendTestEvent(.arrivedHome)
+        _ = try await coordinator.sendTestScenario(.placeArrival)
 
         let auditEntries = try await store.auditEntries(limit: 10)
         XCTAssertEqual(auditEntries.count, 2)
         XCTAssertEqual(auditEntries[0].status, .queued)
         XCTAssertEqual(auditEntries[1].status, .failed)
         XCTAssertTrue(auditEntries[1].payloadSummary.contains("HTTP 502"))
-        XCTAssertTrue(auditEntries[1].payloadSummary.contains("bad gateway"))
 
         let queuedItems = await store.queuedItems()
         XCTAssertEqual(queuedItems.count, 1)
@@ -214,492 +254,26 @@ final class BackgroundWakeCoordinatorTests: XCTestCase {
         XCTAssertNotNil(queuedItems[0].retryAt)
     }
 
-    func testHandleWakeForHealthSnapshotChangedSignalDeliversNeutralHealthEvent() async throws {
-        let clock = FixedClock(currentDate: date(hour: 12, minute: 25))
-        let store = TestRuntimeStore()
-        let settingsStore = InMemorySettingsStore(
-            configuration: RuntimeConfiguration(
-                deviceID: "test-device",
-                openClaw: OpenClawConfiguration(
-                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
-                    bearerToken: "bearer-token",
-                    hmacSecret: "hmac-secret"
-                )
-            )
-        )
-
-        await MockURLProtocol.setRequestHandler { request in
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: ["Content-Type": "application/json"]
-            )!
-            return (response, Data(#"{"ok":true}"#.utf8))
-        }
-
-        let sessionConfiguration = URLSessionConfiguration.ephemeral
-        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
-        let session = URLSession(configuration: sessionConfiguration)
-        let healthSnapshot = makeHealthSnapshot(capturedAt: clock.now())
-
-        let coordinator = BackgroundWakeCoordinator(
-            store: store,
-            engine: CorroborationEngine(
-                store: store,
-                configuration: RuntimeConfiguration(deviceID: "test-device"),
-                clock: clock
-            ),
-            snapshotEnricher: SnapshotEnricher(
-                provider: DefaultSnapshotProvider(),
-                healthProvider: StubHealthSnapshotProvider(health: healthSnapshot)
-            ),
-            policyEngine: PolicyEngine(),
-            deliveryClient: DeliveryClient(session: session),
-            settingsStore: settingsStore,
-            clock: clock
-        )
-
-        let results = try await coordinator.handleWake(
-            signal: ContextSignal(
-                signalKey: "health.snapshot_changed",
-                source: "healthkit_observer",
-                weight: 1.0,
-                polarity: .support,
-                observedAt: clock.now(),
-                validForSec: 60,
-                payload: [
-                    "domains": .array([.string("sleep"), .string("nutrition")])
-                ]
-            )
-        )
-
-        XCTAssertEqual(results.count, 1)
-        XCTAssertEqual(results[0].event.eventType, .healthSnapshotUpdated)
-        XCTAssertEqual(results[0].event.reasons, ["health_domain.sleep", "health_domain.nutrition"])
-
-        let request = await MockURLProtocol.lastRequest()
-        let deliveredRequest = try XCTUnwrap(request)
-        let deliveredBody = try XCTUnwrap(requestBody(from: deliveredRequest))
-        let deliveredEnvelope = try JSONCoding.decoder.decode(SenseKitEventEnvelope.self, from: deliveredBody)
-        XCTAssertEqual(deliveredEnvelope.event.eventType, .healthSnapshotUpdated)
-        XCTAssertEqual(deliveredEnvelope.snapshot.health, healthSnapshot)
-        XCTAssertEqual(deliveredEnvelope.policy.allowedActions, ["update_context"])
-    }
-
-    func testSendTestEventIncludesHomeCoordinateWhenPrecisePlaceSharingIsEnabled() async throws {
-        let clock = FixedClock(currentDate: date(hour: 18, minute: 10))
-        let store = TestRuntimeStore()
-        try await store.saveRuntimeState(RuntimeState(currentPlace: .home))
-        let settingsStore = InMemorySettingsStore(
-            configuration: RuntimeConfiguration(
-                deviceID: "test-device",
-                placeSharingMode: .preciseCoordinates,
-                homeRegion: .init(identifier: "home", latitude: 47.3769, longitude: 8.5417, radiusMeters: 150),
-                openClaw: OpenClawConfiguration(
-                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
-                    bearerToken: "bearer-token",
-                    hmacSecret: "hmac-secret"
-                )
-            )
-        )
-
-        await MockURLProtocol.setRequestHandler { request in
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: ["Content-Type": "application/json"]
-            )!
-            return (response, Data(#"{"ok":true}"#.utf8))
-        }
-
+    private func makeCoordinator(
+        clock: FixedClock,
+        store: TestRuntimeStore,
+        settingsStore: InMemorySettingsStore,
+        statusCode: Int
+    ) -> BackgroundWakeCoordinator {
         let sessionConfiguration = URLSessionConfiguration.ephemeral
         sessionConfiguration.protocolClasses = [MockURLProtocol.self]
         let session = URLSession(configuration: sessionConfiguration)
 
-        let coordinator = BackgroundWakeCoordinator(
+        return BackgroundWakeCoordinator(
             store: store,
-            engine: CorroborationEngine(
-                store: store,
-                configuration: RuntimeConfiguration(deviceID: "test-device"),
-                clock: clock
-            ),
-            snapshotEnricher: SnapshotEnricher(),
-            policyEngine: PolicyEngine(),
             deliveryClient: DeliveryClient(session: session),
             settingsStore: settingsStore,
             clock: clock
         )
-
-        _ = try await coordinator.sendTestEvent(ContextEventType.arrivedHome)
-
-        let request = await MockURLProtocol.lastRequest()
-        let deliveredRequest = try XCTUnwrap(request)
-        let deliveredBody = try XCTUnwrap(requestBody(from: deliveredRequest))
-        let deliveredEnvelope = try JSONCoding.decoder.decode(SenseKitEventEnvelope.self, from: deliveredBody)
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.type, .home)
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.coordinate?.latitude, 47.3769)
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.coordinate?.longitude, 8.5417)
-    }
-
-    func testSendTestEventOmitsHomeCoordinateWhenPlaceSharingIsLabelsOnly() async throws {
-        let clock = FixedClock(currentDate: date(hour: 18, minute: 15))
-        let store = TestRuntimeStore()
-        try await store.saveRuntimeState(RuntimeState(currentPlace: .home))
-        let settingsStore = InMemorySettingsStore(
-            configuration: RuntimeConfiguration(
-                deviceID: "test-device",
-                placeSharingMode: .labelsOnly,
-                homeRegion: .init(identifier: "home", latitude: 47.3769, longitude: 8.5417, radiusMeters: 150),
-                openClaw: OpenClawConfiguration(
-                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
-                    bearerToken: "bearer-token",
-                    hmacSecret: "hmac-secret"
-                )
-            )
-        )
-
-        await MockURLProtocol.setRequestHandler { request in
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: ["Content-Type": "application/json"]
-            )!
-            return (response, Data(#"{"ok":true}"#.utf8))
-        }
-
-        let sessionConfiguration = URLSessionConfiguration.ephemeral
-        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
-        let session = URLSession(configuration: sessionConfiguration)
-
-        let coordinator = BackgroundWakeCoordinator(
-            store: store,
-            engine: CorroborationEngine(
-                store: store,
-                configuration: RuntimeConfiguration(deviceID: "test-device"),
-                clock: clock
-            ),
-            snapshotEnricher: SnapshotEnricher(),
-            policyEngine: PolicyEngine(),
-            deliveryClient: DeliveryClient(session: session),
-            settingsStore: settingsStore,
-            clock: clock
-        )
-
-        _ = try await coordinator.sendTestEvent(ContextEventType.arrivedHome)
-
-        let request = await MockURLProtocol.lastRequest()
-        let deliveredRequest = try XCTUnwrap(request)
-        let deliveredBody = try XCTUnwrap(requestBody(from: deliveredRequest))
-        let deliveredEnvelope = try JSONCoding.decoder.decode(SenseKitEventEnvelope.self, from: deliveredBody)
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.type, .home)
-        XCTAssertNil(deliveredEnvelope.snapshot.place.coordinate)
-    }
-
-    func testSendTestEventUsesFirstSavedCustomPlaceForArrivedPlace() async throws {
-        let clock = FixedClock(currentDate: date(hour: 18, minute: 18))
-        let store = TestRuntimeStore()
-        let settingsStore = InMemorySettingsStore(
-            configuration: RuntimeConfiguration(
-                deviceID: "test-device",
-                fixedPlaces: [
-                    .init(
-                        identifier: "place-gym",
-                        displayName: "Gym",
-                        latitude: 47.3769,
-                        longitude: 8.5417,
-                        radiusMeters: 150
-                    )
-                ],
-                openClaw: OpenClawConfiguration(
-                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
-                    bearerToken: "bearer-token",
-                    hmacSecret: "hmac-secret"
-                )
-            )
-        )
-
-        await MockURLProtocol.setRequestHandler { request in
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: ["Content-Type": "application/json"]
-            )!
-            return (response, Data(#"{"ok":true}"#.utf8))
-        }
-
-        let sessionConfiguration = URLSessionConfiguration.ephemeral
-        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
-        let session = URLSession(configuration: sessionConfiguration)
-
-        let coordinator = BackgroundWakeCoordinator(
-            store: store,
-            engine: CorroborationEngine(
-                store: store,
-                configuration: RuntimeConfiguration(deviceID: "test-device"),
-                clock: clock
-            ),
-            snapshotEnricher: SnapshotEnricher(),
-            policyEngine: PolicyEngine(),
-            deliveryClient: DeliveryClient(session: session),
-            settingsStore: settingsStore,
-            clock: clock
-        )
-
-        _ = try await coordinator.sendTestEvent(.arrivedPlace)
-
-        let request = await MockURLProtocol.lastRequest()
-        let deliveredRequest = try XCTUnwrap(request)
-        let deliveredBody = try XCTUnwrap(requestBody(from: deliveredRequest))
-        let deliveredEnvelope = try JSONCoding.decoder.decode(SenseKitEventEnvelope.self, from: deliveredBody)
-        XCTAssertEqual(deliveredEnvelope.event.eventType, .arrivedPlace)
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.type, .custom)
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.identifier, "place-gym")
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.name, "Gym")
-    }
-
-    func testHandleWakeForCustomPlaceSignalDeliversNamedPlaceEvent() async throws {
-        let clock = FixedClock(currentDate: date(hour: 18, minute: 20))
-        let store = TestRuntimeStore()
-        let settingsStore = InMemorySettingsStore(
-            configuration: RuntimeConfiguration(
-                deviceID: "test-device",
-                fixedPlaces: [
-                    .init(
-                        identifier: "place-gym",
-                        displayName: "Gym",
-                        latitude: 47.3769,
-                        longitude: 8.5417,
-                        radiusMeters: 150
-                    )
-                ],
-                openClaw: OpenClawConfiguration(
-                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
-                    bearerToken: "bearer-token",
-                    hmacSecret: "hmac-secret"
-                )
-            )
-        )
-
-        await MockURLProtocol.setRequestHandler { request in
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: ["Content-Type": "application/json"]
-            )!
-            return (response, Data(#"{"ok":true}"#.utf8))
-        }
-
-        let sessionConfiguration = URLSessionConfiguration.ephemeral
-        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
-        let session = URLSession(configuration: sessionConfiguration)
-
-        let coordinator = BackgroundWakeCoordinator(
-            store: store,
-            engine: CorroborationEngine(
-                store: store,
-                configuration: RuntimeConfiguration(deviceID: "test-device"),
-                clock: clock
-            ),
-            snapshotEnricher: SnapshotEnricher(),
-            policyEngine: PolicyEngine(),
-            deliveryClient: DeliveryClient(session: session),
-            settingsStore: settingsStore,
-            clock: clock
-        )
-
-        let results = try await coordinator.handleWake(
-            signal: ContextSignal(
-                signalKey: "location.region_enter_place",
-                source: "corelocation_region",
-                weight: 0.85,
-                polarity: .support,
-                observedAt: clock.now(),
-                validForSec: 180,
-                payload: [
-                    "place_identifier": .string("place-gym"),
-                    "place_name": .string("Gym")
-                ]
-            )
-        )
-
-        XCTAssertEqual(results.count, 1)
-        XCTAssertEqual(results[0].event.eventType, .arrivedPlace)
-
-        let state = try await store.loadRuntimeState()
-        XCTAssertEqual(state.currentPlace, .custom)
-        XCTAssertEqual(state.currentPlaceIdentifier, "place-gym")
-        XCTAssertEqual(state.currentPlaceName, "Gym")
-
-        let timelineEntries = try await store.timelineEntries(limit: 20)
-        XCTAssertTrue(timelineEntries.contains { $0.message.contains("Received signal location.region_enter_place") })
-        XCTAssertTrue(timelineEntries.contains { $0.message.contains("Emitted arrived_place") })
-
-        let request = await MockURLProtocol.lastRequest()
-        let deliveredRequest = try XCTUnwrap(request)
-        let deliveredBody = try XCTUnwrap(requestBody(from: deliveredRequest))
-        let deliveredEnvelope = try JSONCoding.decoder.decode(SenseKitEventEnvelope.self, from: deliveredBody)
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.type, .custom)
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.identifier, "place-gym")
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.name, "Gym")
-        XCTAssertNil(deliveredEnvelope.snapshot.place.coordinate)
-    }
-
-    func testHandleWakeForCustomPlaceSignalIncludesCoordinatesWhenPreciseSharingIsEnabled() async throws {
-        let clock = FixedClock(currentDate: date(hour: 18, minute: 25))
-        let store = TestRuntimeStore()
-        let settingsStore = InMemorySettingsStore(
-            configuration: RuntimeConfiguration(
-                deviceID: "test-device",
-                placeSharingMode: .preciseCoordinates,
-                fixedPlaces: [
-                    .init(
-                        identifier: "place-gym",
-                        displayName: "Gym",
-                        latitude: 47.3769,
-                        longitude: 8.5417,
-                        radiusMeters: 150
-                    )
-                ],
-                openClaw: OpenClawConfiguration(
-                    endpointURL: URL(string: "https://example.com/hooks/sensekit")!,
-                    bearerToken: "bearer-token",
-                    hmacSecret: "hmac-secret"
-                )
-            )
-        )
-
-        await MockURLProtocol.setRequestHandler { request in
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: ["Content-Type": "application/json"]
-            )!
-            return (response, Data(#"{"ok":true}"#.utf8))
-        }
-
-        let sessionConfiguration = URLSessionConfiguration.ephemeral
-        sessionConfiguration.protocolClasses = [MockURLProtocol.self]
-        let session = URLSession(configuration: sessionConfiguration)
-
-        let coordinator = BackgroundWakeCoordinator(
-            store: store,
-            engine: CorroborationEngine(
-                store: store,
-                configuration: RuntimeConfiguration(deviceID: "test-device"),
-                clock: clock
-            ),
-            snapshotEnricher: SnapshotEnricher(),
-            policyEngine: PolicyEngine(),
-            deliveryClient: DeliveryClient(session: session),
-            settingsStore: settingsStore,
-            clock: clock
-        )
-
-        _ = try await coordinator.handleWake(
-            signal: ContextSignal(
-                signalKey: "location.region_enter_place",
-                source: "corelocation_region",
-                weight: 0.85,
-                polarity: .support,
-                observedAt: clock.now(),
-                validForSec: 180,
-                payload: [
-                    "place_identifier": .string("place-gym"),
-                    "place_name": .string("Gym")
-                ]
-            )
-        )
-
-        let request = await MockURLProtocol.lastRequest()
-        let deliveredRequest = try XCTUnwrap(request)
-        let deliveredBody = try XCTUnwrap(requestBody(from: deliveredRequest))
-        let deliveredEnvelope = try JSONCoding.decoder.decode(SenseKitEventEnvelope.self, from: deliveredBody)
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.type, .custom)
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.identifier, "place-gym")
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.name, "Gym")
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.coordinate?.latitude, 47.3769)
-        XCTAssertEqual(deliveredEnvelope.snapshot.place.coordinate?.longitude, 8.5417)
     }
 
     private func date(hour: Int, minute: Int) -> Date {
         Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 7, hour: hour, minute: minute))!
-    }
-
-    private func makeHealthSnapshot(capturedAt: Date) -> HealthSnapshot {
-        HealthSnapshot(
-            capturedAt: capturedAt,
-            sleep: .init(
-                available: true,
-                authorized: true,
-                freshness: .recent,
-                lastSleepStartAt: date(hour: 22, minute: 40),
-                lastSleepEndAt: date(hour: 6, minute: 30),
-                asleepMinutes: 470,
-                inBedMinutes: 495,
-                sevenDayAvgAsleepMinutes: 455,
-                deltaVsSevenDayAvgMinutes: 15
-            ),
-            workout: .init(
-                available: true,
-                authorized: true,
-                freshness: .recent,
-                active: false,
-                todayCount: 1,
-                todayTotalMinutes: 48,
-                todayActiveEnergyKcal: 320,
-                lastType: "traditional_strength_training",
-                lastStartAt: date(hour: 9, minute: 15),
-                lastEndAt: date(hour: 10, minute: 3)
-            ),
-            nutrition: .init(
-                available: true,
-                authorized: true,
-                freshness: .recent,
-                lastLoggedAt: date(hour: 12, minute: 10),
-                proteinG: 118,
-                proteinTargetG: 160,
-                proteinRemainingG: 42,
-                caloriesKcal: 2_110,
-                caloriesTargetKcal: 2_700,
-                caloriesRemainingKcal: 590,
-                waterML: 1_650,
-                waterTargetML: 3_000,
-                waterRemainingML: 1_350
-            ),
-            activity: .init(
-                available: true,
-                authorized: true,
-                freshness: .recent,
-                steps: 7_420,
-                activeEnergyKcal: 612,
-                distanceKM: 5.8,
-                sevenDayAvgStepsByNow: 9_100,
-                deltaVsSevenDayAvgStepsByNow: -1_680
-            ),
-            recovery: .init(
-                available: true,
-                authorized: true,
-                freshness: .recent,
-                restingHeartRateBPM: 54,
-                restingHeartRateDeltaVs14DayAvgBPM: 4,
-                hrvSDNNMs: 39,
-                hrvDeltaVs14DayAvgMs: -11,
-                measuredAt: date(hour: 5, minute: 40)
-            ),
-            mind: .init(
-                available: true,
-                authorized: false,
-                freshness: .stale,
-                latestState: nil,
-                loggedAt: nil
-            )
-        )
     }
 
     private func requestBody(from request: URLRequest) -> Data? {
@@ -855,13 +429,5 @@ private actor TestRuntimeStore: RuntimeStore {
 
     func queuedItems() -> [QueuedWebhook] {
         queue
-    }
-}
-
-private struct StubHealthSnapshotProvider: HealthSnapshotProviding {
-    let health: HealthSnapshot
-
-    func currentHealthSnapshot(at date: Date, state: RuntimeState) async -> HealthSnapshot {
-        health
     }
 }

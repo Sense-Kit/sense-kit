@@ -5,11 +5,13 @@ public enum SignalPolarity: String, Codable, Sendable {
     case oppose
 }
 
-public enum ModeHint: String, Codable, Sendable {
-    case textBrief = "text_brief"
-    case voiceSafe = "voice_safe"
-    case voiceNote = "voice_note"
-    case normal = "normal"
+public enum SignalCollectorKind: String, Codable, Sendable {
+    case motion
+    case location
+    case power
+    case health
+    case manual
+    case unknown
 }
 
 public enum PlaceType: String, Codable, Sendable {
@@ -17,17 +19,6 @@ public enum PlaceType: String, Codable, Sendable {
     case work
     case custom
     case other
-}
-
-public enum SnapshotFreshness: String, Codable, Sendable {
-    case live
-    case recent
-    case stale
-}
-
-public enum WorkoutActivityState: String, Codable, Sendable {
-    case inactive
-    case active
 }
 
 public enum QueueStatus: String, Codable, Sendable {
@@ -48,26 +39,15 @@ public enum AuditStatus: String, Codable, Sendable {
 public enum TimelineCategory: String, Codable, Sendable {
     case signal
     case evaluation
-    case event
+    case scenario
     case delivery
 }
 
-public enum ContextEventType: String, Codable, CaseIterable, Sendable {
-    case motionActivityObserved = "motion_activity_observed"
-    case healthSnapshotUpdated = "health_snapshot_updated"
-    case wakeConfirmed = "wake_confirmed"
-    case drivingStarted = "driving_started"
-    case drivingStopped = "driving_stopped"
-    case arrivedPlace = "arrived_place"
-    case leftPlace = "left_place"
-    case arrivedHome = "arrived_home"
-    case leftHome = "left_home"
-    case arrivedWork = "arrived_work"
-    case leftWork = "left_work"
-    case workoutStarted = "workout_started"
-    case workoutEnded = "workout_ended"
-    case focusOn = "focus_on"
-    case focusOff = "focus_off"
+public enum SignalTestScenario: String, Codable, CaseIterable, Sendable {
+    case wakeSignals = "wake_signals"
+    case drivingSignals = "driving_signals"
+    case placeArrival = "place_arrival"
+    case workoutFinished = "workout_finished"
 }
 
 public enum FeatureFlag: String, Codable, CaseIterable, Sendable {
@@ -135,30 +115,36 @@ public struct ContextSignal: Codable, Equatable, Sendable {
     public let schemaVersion: String
     public let signalID: String
     public let signalKey: String
+    public let collector: SignalCollectorKind
     public let source: String
     public let weight: Double
     public let polarity: SignalPolarity
     public let observedAt: Date
+    public let receivedAt: Date
     public let validForSec: Int
     public let payload: [String: JSONValue]
 
     public init(
         signalID: String = UUID().uuidString,
         signalKey: String,
+        collector: SignalCollectorKind? = nil,
         source: String,
         weight: Double,
         polarity: SignalPolarity,
         observedAt: Date,
+        receivedAt: Date? = nil,
         validForSec: Int,
         payload: [String: JSONValue] = [:]
     ) {
         self.schemaVersion = "sensekit.context_signal.v1"
         self.signalID = signalID
         self.signalKey = signalKey
+        self.collector = collector ?? Self.inferredCollector(for: signalKey)
         self.source = source
         self.weight = weight
         self.polarity = polarity
         self.observedAt = observedAt
+        self.receivedAt = receivedAt ?? observedAt
         self.validForSec = validForSec
         self.payload = payload
     }
@@ -167,221 +153,54 @@ public struct ContextSignal: Codable, Equatable, Sendable {
         observedAt.addingTimeInterval(TimeInterval(validForSec))
     }
 
+    public static func inferredCollector(for signalKey: String) -> SignalCollectorKind {
+        if signalKey.hasPrefix("motion.") {
+            return .motion
+        }
+        if signalKey.hasPrefix("location.") {
+            return .location
+        }
+        if signalKey.hasPrefix("power.") {
+            return .power
+        }
+        if signalKey.hasPrefix("health.") {
+            return .health
+        }
+        if signalKey.hasPrefix("manual.") {
+            return .manual
+        }
+        return .unknown
+    }
+
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
         case signalID = "signal_id"
         case signalKey = "signal_key"
+        case collector
         case source
         case weight
         case polarity
         case observedAt = "observed_at"
+        case receivedAt = "received_at"
         case validForSec = "valid_for_sec"
         case payload
     }
-}
 
-public struct ContextEvent: Codable, Equatable, Sendable {
-    public let schemaVersion: String
-    public let eventID: String
-    public let eventType: ContextEventType
-    public let occurredAt: Date
-    public let confidence: Double
-    public let reasons: [String]
-    public let modeHint: ModeHint
-    public let cooldownSec: Int
-    public let dedupeKey: String
-
-    public init(
-        eventID: String = UUID().uuidString,
-        eventType: ContextEventType,
-        occurredAt: Date,
-        confidence: Double,
-        reasons: [String],
-        modeHint: ModeHint,
-        cooldownSec: Int,
-        dedupeKey: String
-    ) {
-        self.schemaVersion = "sensekit.context_event.v1"
-        self.eventID = eventID
-        self.eventType = eventType
-        self.occurredAt = occurredAt
-        self.confidence = confidence
-        self.reasons = reasons
-        self.modeHint = modeHint
-        self.cooldownSec = cooldownSec
-        self.dedupeKey = dedupeKey
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case schemaVersion = "schema_version"
-        case eventID = "event_id"
-        case eventType = "event_type"
-        case occurredAt = "occurred_at"
-        case confidence
-        case reasons
-        case modeHint = "mode_hint"
-        case cooldownSec = "cooldown_sec"
-        case dedupeKey = "dedupe_key"
-    }
-}
-
-public struct ContextSnapshot: Codable, Equatable, Sendable {
-    public struct Routine: Codable, Equatable, Sendable {
-        public var awake: Bool
-        public var focus: String?
-        public var workout: WorkoutActivityState
-    }
-
-    public struct Place: Codable, Equatable, Sendable {
-        public struct Coordinate: Codable, Equatable, Sendable {
-            public var latitude: Double
-            public var longitude: Double
-
-            public init(latitude: Double, longitude: Double) {
-                self.latitude = latitude
-                self.longitude = longitude
-            }
-        }
-
-        public var type: PlaceType
-        public var identifier: String?
-        public var name: String?
-        public var freshness: SnapshotFreshness
-        public var coordinate: Coordinate?
-
-        public init(
-            type: PlaceType,
-            identifier: String? = nil,
-            name: String? = nil,
-            freshness: SnapshotFreshness,
-            coordinate: Coordinate? = nil
-        ) {
-            self.type = type
-            self.identifier = identifier
-            self.name = name
-            self.freshness = freshness
-            self.coordinate = coordinate
-        }
-
-        enum CodingKeys: String, CodingKey {
-            case type
-            case identifier
-            case name
-            case freshness
-            case coordinate
-        }
-    }
-
-    public struct Calendar: Codable, Equatable, Sendable {
-        public var inMeeting: Bool
-        public var nextMeetingInMin: Int?
-        public var freshness: SnapshotFreshness
-
-        enum CodingKeys: String, CodingKey {
-            case inMeeting = "in_meeting"
-            case nextMeetingInMin = "next_meeting_in_min"
-            case freshness
-        }
-    }
-
-    public struct Device: Codable, Equatable, Sendable {
-        public var batteryPercentBucket: Int
-        public var charging: Bool
-
-        enum CodingKeys: String, CodingKey {
-            case batteryPercentBucket = "battery_percent_bucket"
-            case charging
-        }
-    }
-
-    public let schemaVersion: String
-    public let capturedAt: Date
-    public let routine: Routine
-    public let place: Place
-    public let calendar: Calendar
-    public let device: Device
-    public let health: HealthSnapshot
-
-    public init(
-        capturedAt: Date,
-        routine: Routine,
-        place: Place,
-        calendar: Calendar,
-        device: Device,
-        health: HealthSnapshot? = nil
-    ) {
-        self.schemaVersion = "sensekit.context_snapshot.v1"
-        self.capturedAt = capturedAt
-        self.routine = routine
-        self.place = place
-        self.calendar = calendar
-        self.device = device
-        self.health = health ?? .empty(capturedAt: capturedAt)
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case schemaVersion = "schema_version"
-        case capturedAt = "captured_at"
-        case routine
-        case place
-        case calendar
-        case device
-        case health
-    }
-
-    public func withHealth(_ health: HealthSnapshot) -> ContextSnapshot {
-        ContextSnapshot(
-            capturedAt: capturedAt,
-            routine: routine,
-            place: place,
-            calendar: calendar,
-            device: device,
-            health: health
-        )
-    }
-
-    public func withPlace(_ place: Place) -> ContextSnapshot {
-        ContextSnapshot(
-            capturedAt: capturedAt,
-            routine: routine,
-            place: place,
-            calendar: calendar,
-            device: device,
-            health: health
-        )
-    }
-}
-
-public struct PolicyDecision: Codable, Equatable, Sendable {
-    public let schemaVersion: String
-    public let eventType: ContextEventType
-    public let allowedActions: [String]
-    public let blockedActions: [String]
-    public let deliveryChannelPreference: [String]
-    public let ttlSec: Int
-
-    public init(
-        eventType: ContextEventType,
-        allowedActions: [String],
-        blockedActions: [String],
-        deliveryChannelPreference: [String],
-        ttlSec: Int
-    ) {
-        self.schemaVersion = "sensekit.policy_decision.v1"
-        self.eventType = eventType
-        self.allowedActions = allowedActions
-        self.blockedActions = blockedActions
-        self.deliveryChannelPreference = deliveryChannelPreference
-        self.ttlSec = ttlSec
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case schemaVersion = "schema_version"
-        case eventType = "event_type"
-        case allowedActions = "allowed_actions"
-        case blockedActions = "blocked_actions"
-        case deliveryChannelPreference = "delivery_channel_preference"
-        case ttlSec = "ttl_sec"
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let signalKey = try container.decode(String.self, forKey: .signalKey)
+        let observedAt = try container.decode(Date.self, forKey: .observedAt)
+        self.schemaVersion = try container.decodeIfPresent(String.self, forKey: .schemaVersion) ?? "sensekit.context_signal.v1"
+        self.signalID = try container.decode(String.self, forKey: .signalID)
+        self.signalKey = signalKey
+        self.collector = try container.decodeIfPresent(SignalCollectorKind.self, forKey: .collector) ?? Self.inferredCollector(for: signalKey)
+        self.source = try container.decode(String.self, forKey: .source)
+        self.weight = try container.decode(Double.self, forKey: .weight)
+        self.polarity = try container.decode(SignalPolarity.self, forKey: .polarity)
+        self.observedAt = observedAt
+        self.receivedAt = try container.decodeIfPresent(Date.self, forKey: .receivedAt) ?? observedAt
+        self.validForSec = try container.decode(Int.self, forKey: .validForSec)
+        self.payload = try container.decodeIfPresent([String: JSONValue].self, forKey: .payload) ?? [:]
     }
 }
 
@@ -389,43 +208,72 @@ public struct DeliveryMetadata: Codable, Equatable, Sendable {
     public var attempt: Int
     public var queuedAt: Date
 
+    public init(attempt: Int, queuedAt: Date) {
+        self.attempt = attempt
+        self.queuedAt = queuedAt
+    }
+
     enum CodingKeys: String, CodingKey {
         case attempt
         case queuedAt = "queued_at"
     }
 }
 
-public struct SenseKitEventEnvelope: Codable, Equatable, Sendable {
-    public let schemaVersion: String
+public struct SignalBatchDevice: Codable, Equatable, Sendable {
     public let deviceID: String
-    public let event: ContextEvent
-    public let snapshot: ContextSnapshot
-    public let policy: PolicyDecision
+    public let platform: String
+    public let placeSharingMode: PlaceSharingMode
+
+    public init(deviceID: String, platform: String = "ios", placeSharingMode: PlaceSharingMode) {
+        self.deviceID = deviceID
+        self.platform = platform
+        self.placeSharingMode = placeSharingMode
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case deviceID = "device_id"
+        case platform
+        case placeSharingMode = "place_sharing_mode"
+    }
+}
+
+public struct SenseKitSignalBatch: Codable, Equatable, Sendable {
+    public let schemaVersion: String
+    public let batchID: String
+    public let sentAt: Date
+    public let device: SignalBatchDevice
+    public let signals: [ContextSignal]
     public let delivery: DeliveryMetadata
 
-    public init(deviceID: String, event: ContextEvent, snapshot: ContextSnapshot, policy: PolicyDecision, delivery: DeliveryMetadata) {
-        self.schemaVersion = "sensekit.event.v1"
-        self.deviceID = deviceID
-        self.event = event
-        self.snapshot = snapshot
-        self.policy = policy
+    public init(
+        batchID: String = UUID().uuidString,
+        sentAt: Date,
+        device: SignalBatchDevice,
+        signals: [ContextSignal],
+        delivery: DeliveryMetadata
+    ) {
+        self.schemaVersion = "sensekit.signal_batch.v1"
+        self.batchID = batchID
+        self.sentAt = sentAt
+        self.device = device
+        self.signals = signals
         self.delivery = delivery
     }
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
-        case deviceID = "device_id"
-        case event
-        case snapshot
-        case policy
+        case batchID = "batch_id"
+        case sentAt = "sent_at"
+        case device
+        case signals
         case delivery
     }
 }
 
 public struct QueuedWebhook: Codable, Equatable, Sendable, Identifiable {
     public let id: String
-    public let eventType: ContextEventType
-    public let envelope: SenseKitEventEnvelope
+    public let eventType: String
+    public let signalBatch: SenseKitSignalBatch?
     public var status: QueueStatus
     public var attempt: Int
     public var queuedAt: Date
@@ -433,8 +281,8 @@ public struct QueuedWebhook: Codable, Equatable, Sendable, Identifiable {
 
     public init(
         id: String = UUID().uuidString,
-        eventType: ContextEventType,
-        envelope: SenseKitEventEnvelope,
+        eventType: String,
+        signalBatch: SenseKitSignalBatch,
         status: QueueStatus = .queued,
         attempt: Int = 1,
         queuedAt: Date,
@@ -442,7 +290,7 @@ public struct QueuedWebhook: Codable, Equatable, Sendable, Identifiable {
     ) {
         self.id = id
         self.eventType = eventType
-        self.envelope = envelope
+        self.signalBatch = signalBatch
         self.status = status
         self.attempt = attempt
         self.queuedAt = queuedAt
@@ -635,48 +483,17 @@ public struct RuntimeConfiguration: Codable, Equatable, Sendable {
 }
 
 public struct RuntimeState: Codable, Equatable, Sendable {
-    public var lastEventTimestamps: [String: Date]
     public var currentPlace: PlaceType
     public var currentPlaceIdentifier: String?
     public var currentPlaceName: String?
-    public var isDriving: Bool
-    public var isWorkoutActive: Bool
-    public var boostTimestamps: [String: Date]
-    public var lastWakeAt: Date?
 
     public init(
-        lastEventTimestamps: [String: Date] = [:],
         currentPlace: PlaceType = .other,
         currentPlaceIdentifier: String? = nil,
-        currentPlaceName: String? = nil,
-        isDriving: Bool = false,
-        isWorkoutActive: Bool = false,
-        boostTimestamps: [String: Date] = [:],
-        lastWakeAt: Date? = nil
+        currentPlaceName: String? = nil
     ) {
-        self.lastEventTimestamps = lastEventTimestamps
         self.currentPlace = currentPlace
         self.currentPlaceIdentifier = currentPlaceIdentifier
         self.currentPlaceName = currentPlaceName
-        self.isDriving = isDriving
-        self.isWorkoutActive = isWorkoutActive
-        self.boostTimestamps = boostTimestamps
-        self.lastWakeAt = lastWakeAt
-    }
-
-    public func lastEventDate(for eventType: ContextEventType, scope: String? = nil) -> Date? {
-        lastEventTimestamps[eventTimestampKey(for: eventType, scope: scope)]
-    }
-
-    public mutating func setLastEventDate(_ date: Date, for eventType: ContextEventType, scope: String? = nil) {
-        lastEventTimestamps[eventTimestampKey(for: eventType, scope: scope)] = date
-    }
-
-    private func eventTimestampKey(for eventType: ContextEventType, scope: String?) -> String {
-        guard let scope, !scope.isEmpty else {
-            return eventType.rawValue
-        }
-
-        return "\(eventType.rawValue):\(scope)"
     }
 }

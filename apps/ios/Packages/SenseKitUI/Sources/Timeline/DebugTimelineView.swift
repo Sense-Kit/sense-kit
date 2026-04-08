@@ -108,7 +108,7 @@ public struct DebugTimelineView: View {
             return .green
         case .location:
             return .orange
-        case .rules:
+        case .processing:
             return .mint
         case .delivery:
             return .teal

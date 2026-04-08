@@ -5,18 +5,18 @@ struct PrivacyPolicyView: View {
         List {
             Section("Closed Beta") {
                 Text("SenseKit is currently a closed beta for passive motion and place-based context on iPhone.")
-                Text("This build focuses on Motion & Fitness and location-based arrivals, departures, and driving support. Workout handling is still preview-only in the UI and is not fully active in the runtime yet.")
+                Text("This build focuses on Motion & Fitness, location changes, power state changes, and workout samples. The app now sends raw signal batches instead of pre-decided context events.")
             }
 
             Section("What SenseKit Sends") {
-                Text("SenseKit sends structured context events to the OpenClaw endpoint you configure. Typical payloads include an event type, event time, confidence, short reasons, coarse place labels like home or work, and simple device state like battery bucket and charging.")
-                Text("SenseKit does not send raw GPS traces, raw motion history, calendar titles, attendee lists, raw Health values, bearer tokens, or HMAC secrets.")
+                Text("SenseKit sends raw signal batches to the OpenClaw endpoint you configure. Typical payloads include motion observations, location region changes, battery state changes, and workout sample metadata.")
+                Text("SenseKit does not send calendar titles, attendee lists, bearer tokens, or HMAC secrets. Exact coordinates are only included when you enable precise place sharing.")
             }
 
             Section("Permissions") {
-                Text("Motion & Fitness is used to detect wake and driving state on-device.")
-                Text("Location is used to capture your saved places, improve driving detection, and monitor arrivals and departures in the background.")
-                Text("Calendar and HealthKit strings are present because those integrations are being prepared, but this beta build is centered on motion and location validation.")
+                Text("Motion & Fitness is used to observe movement changes in the background.")
+                Text("Location is used to capture your saved places, improve driving context, and monitor arrivals and departures in the background.")
+                Text("HealthKit is used to observe workout samples when you enable the workout feature.")
             }
 
             Section("Storage And Control") {

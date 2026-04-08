@@ -26,6 +26,11 @@ protocol MotionCollectorBuilding: AnyObject {
 }
 
 @MainActor
+protocol PowerCollectorBuilding: AnyObject {
+    func makePowerCollector(signalHandler: @escaping SignalHandler) -> any ContextSignalCollector
+}
+
+@MainActor
 protocol MotionAuthorizationProviding: AnyObject {
     func status() -> MotionAuthorizationState
 }
@@ -34,6 +39,13 @@ protocol MotionAuthorizationProviding: AnyObject {
 final class DefaultMotionCollectorFactory: MotionCollectorBuilding {
     func makeMotionCollector(signalHandler: @escaping SignalHandler, clock: Clock) -> any ContextSignalCollector {
         MotionCollector(signalHandler: signalHandler, clock: clock)
+    }
+}
+
+@MainActor
+final class DefaultPowerCollectorFactory: PowerCollectorBuilding {
+    func makePowerCollector(signalHandler: @escaping SignalHandler) -> any ContextSignalCollector {
+        DevicePowerCollector(signalHandler: signalHandler)
     }
 }
 
@@ -67,52 +79,47 @@ final class DefaultMotionAuthorizationProvider: MotionAuthorizationProviding {
 public final class PassiveWakeRuntimeController {
     private let store: RuntimeStore
     private let settingsStore: SettingsStore
-    private let snapshotEnricher: SnapshotEnricher
-    private let policyEngine: PolicyEngine
     private let deliveryClient: DeliveryClient
     private let clock: Clock
     private let motionCollectorFactory: MotionCollectorBuilding
+    private let powerCollectorFactory: PowerCollectorBuilding
     private let motionAuthorizationProvider: MotionAuthorizationProviding
 
     private var motionCollector: (any ContextSignalCollector)?
+    private var powerCollector: (any ContextSignalCollector)?
     private var activeConfiguration: RuntimeConfiguration?
     private var collectorStatus: WakeCollectorStatus = .inactive
 
     public init(
         store: RuntimeStore,
         settingsStore: SettingsStore,
-        snapshotEnricher: SnapshotEnricher = SnapshotEnricher(),
-        policyEngine: PolicyEngine = PolicyEngine(),
         deliveryClient: DeliveryClient = DeliveryClient(),
         clock: Clock = SystemClock()
     ) {
         self.store = store
         self.settingsStore = settingsStore
-        self.snapshotEnricher = snapshotEnricher
-        self.policyEngine = policyEngine
         self.deliveryClient = deliveryClient
         self.clock = clock
         self.motionCollectorFactory = DefaultMotionCollectorFactory()
+        self.powerCollectorFactory = DefaultPowerCollectorFactory()
         self.motionAuthorizationProvider = DefaultMotionAuthorizationProvider()
     }
 
     init(
         store: RuntimeStore,
         settingsStore: SettingsStore,
-        snapshotEnricher: SnapshotEnricher = SnapshotEnricher(),
-        policyEngine: PolicyEngine = PolicyEngine(),
         deliveryClient: DeliveryClient = DeliveryClient(),
         clock: Clock = SystemClock(),
         motionCollectorFactory: MotionCollectorBuilding = DefaultMotionCollectorFactory(),
+        powerCollectorFactory: PowerCollectorBuilding = DefaultPowerCollectorFactory(),
         motionAuthorizationProvider: MotionAuthorizationProviding = DefaultMotionAuthorizationProvider()
     ) {
         self.store = store
         self.settingsStore = settingsStore
-        self.snapshotEnricher = snapshotEnricher
-        self.policyEngine = policyEngine
         self.deliveryClient = deliveryClient
         self.clock = clock
         self.motionCollectorFactory = motionCollectorFactory
+        self.powerCollectorFactory = powerCollectorFactory
         self.motionAuthorizationProvider = motionAuthorizationProvider
     }
 
@@ -143,13 +150,17 @@ public final class PassiveWakeRuntimeController {
                     signalHandler: makeSignalHandler(configuration: configuration),
                     clock: clock
                 )
+                powerCollector = powerCollectorFactory.makePowerCollector(
+                    signalHandler: makeSignalHandler(configuration: configuration)
+                )
                 activeConfiguration = configuration
                 await motionCollector?.start()
+                await powerCollector?.start()
                 try await store.appendDebugEntry(
                     DebugTimelineEntry(
                         createdAt: clock.now(),
                         category: .evaluation,
-                        message: "Passive wake collector started"
+                        message: "Passive wake collectors started"
                         )
                 )
             }
@@ -179,6 +190,8 @@ public final class PassiveWakeRuntimeController {
     private func stopCollector() {
         motionCollector?.stop()
         motionCollector = nil
+        powerCollector?.stop()
+        powerCollector = nil
     }
 
     private func isMotionCollectionEnabled(_ configuration: RuntimeConfiguration) -> Bool {
@@ -193,12 +206,8 @@ public final class PassiveWakeRuntimeController {
     }
 
     private func makeCoordinator(configuration: RuntimeConfiguration) -> BackgroundWakeCoordinator {
-        let engine = CorroborationEngine(store: store, configuration: configuration, clock: clock)
         return BackgroundWakeCoordinator(
             store: store,
-            engine: engine,
-            snapshotEnricher: snapshotEnricher,
-            policyEngine: policyEngine,
             deliveryClient: deliveryClient,
             settingsStore: settingsStore,
             clock: clock
