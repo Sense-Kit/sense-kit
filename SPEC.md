@@ -87,7 +87,8 @@ SenseKit is local-first:
 - it only sends to the OpenClaw endpoint the user configures
 - it signs outbound requests with HMAC
 
-SenseKit does not currently send calendar titles, attendee lists, bearer tokens, or HMAC secrets.
+SenseKit does not currently send calendar titles, attendee lists, or the raw HMAC secret itself.
+SenseKit does send the configured bearer token in the HTTP `Authorization` header and a derived HMAC signature header to the user-configured endpoint.
 
 Exact coordinates are only sent when `place_sharing_mode` is `precise_coordinates`.
 

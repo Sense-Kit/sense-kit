@@ -23,8 +23,9 @@ If you are new to the project, use this reading order:
 - [Runbooks](runbooks)
   - runtime bootstrap and integration setup
 - [Privacy docs](privacy)
+  - hosted privacy policy README
   - minimization rules
-  - privacy policy
+  - compatibility copy of the privacy policy
 - [Release notes](releases)
   - release snapshots and beta notes
 
@@ -34,5 +35,5 @@ Use these if you already know why you are here:
 
 - Evaluating the project: [SPEC.md](../SPEC.md), [docs/adr](adr), [docs/bench/phase-1a-field-test.md](bench/phase-1a-field-test.md)
 - Integrating with OpenClaw: [docs/runbooks/runtime-bootstrap.md](runbooks/runtime-bootstrap.md)
-- Reviewing privacy and data handling: [docs/privacy/minimization.md](privacy/minimization.md), [docs/privacy/privacy-policy.md](privacy/privacy-policy.md)
+- Reviewing privacy and data handling: [docs/privacy/minimization.md](privacy/minimization.md), [docs/privacy/README.md](privacy/README.md)
 - Contributing code or docs: [CONTRIBUTING.md](../CONTRIBUTING.md), [CHANGELOG.md](../CHANGELOG.md)

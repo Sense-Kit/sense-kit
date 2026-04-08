@@ -60,9 +60,10 @@ SenseKit is now intentionally closer to a data transport runtime than an event e
 | --- | --- |
 | Raw signal batches such as `motion.activity_observed`, `location.region_state_changed`, or `health.workout_sample_observed` | Calendar titles and attendees |
 | Signal payload fields like motion flags, speed, battery state, workout metadata, and optional coordinates | Local debug traces |
-| Signal timestamps and collector/source metadata | Tokens and secrets |
+| Signal timestamps and collector/source metadata | Local audit history |
+| The configured bearer token in the HTTP `Authorization` header and a derived HMAC signature header | The raw HMAC secret itself |
 
-In the current bench app, place coordinates are still gated by the existing place sharing setting. Everything else in the primary outbound path is now built around raw signal batches rather than normalized events.
+In the current bench app, place coordinates are still gated by the existing place sharing setting. The HMAC secret itself does not leave the phone, but the configured bearer token does because it is used to authenticate the outbound request to the user's chosen endpoint. During place setup, address search can also use Apple MapKit and geocoding services.
 
 ## Repository guide
 

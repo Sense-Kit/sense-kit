@@ -2,8 +2,6 @@
 
 Last updated: April 8, 2026
 
-This file mirrors the canonical hosted privacy policy in [docs/privacy/README.md](README.md).
-
 SenseKit is an iPhone app that watches a limited set of device signals and can forward them to an OpenClaw endpoint chosen by the user. This policy covers the current SenseKit iOS beta and is written to match the app's actual architecture in this repository.
 
 ## Summary

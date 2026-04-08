@@ -1,6 +1,6 @@
 # SenseKit Closed Beta Release Notes
 
-Last updated: April 7, 2026
+Last updated: April 8, 2026
 
 This document is the operator checklist for shipping the first closed TestFlight beta of SenseKit.
 
@@ -21,7 +21,7 @@ Before inviting external testers:
    - beta app description
    - features to test
    - feedback email
-3. Add a privacy policy URL that points to a hosted copy of `docs/privacy/privacy-policy.md`.
+3. Add a privacy policy URL that points to a hosted copy of `docs/privacy/README.md`.
 4. Complete App Privacy answers to match the actual beta behavior.
 5. Complete export compliance questions for the app’s use of HTTPS and HMAC signing.
 6. Upload a signed archive with a provisioning profile that contains the application identifier.
@@ -37,4 +37,4 @@ Focus on three things:
 
 ## Suggested App Review notes
 
-SenseKit is a closed beta for passive signal delivery to a user-configured OpenClaw endpoint. The main beta flows are Motion & Fitness observations, background location arrivals and departures, power state changes, and workout sample delivery. The app sends signed raw signal batches instead of pre-decided events. Calendar titles, attendee lists, bearer tokens, and HMAC secrets are not sent. Exact coordinates are only sent when the user explicitly enables precise place sharing.
+SenseKit is a closed beta for passive signal delivery to a user-configured OpenClaw endpoint. The main beta flows are Motion & Fitness observations, background location arrivals and departures, power state changes, and workout sample delivery. The app sends signed raw signal batches instead of pre-decided events. Calendar titles and attendee lists are not sent. The configured bearer token is sent in the `Authorization` header to the user's own endpoint, and the HMAC secret stays on device while the app sends a derived signature header. Exact coordinates are only sent when the user explicitly enables precise place sharing.
