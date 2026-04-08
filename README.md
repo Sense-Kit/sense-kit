@@ -2,19 +2,23 @@
 
 [![CI](https://github.com/Sense-Kit/sense-kit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Sense-Kit/sense-kit/actions/workflows/ci.yml)
 
+Real-world senses for AI agents.
+
 SenseKit is an open-source iPhone context runtime for AI agents.
 
-It listens to passive on-device signals like motion, location, workouts, and power state, packages those observations as raw signal batches, and delivers signed HTTPS payloads to OpenClaw.
+It listens to passive on-device signals like motion, location, workouts, and power state, stores local audit and debug traces, packages observations into `sensekit.signal_batch.v1`, and delivers signed HTTPS payloads to OpenClaw.
 
-The project exists to solve one practical problem: an agent cannot act intelligently around the real world if the user has to build a pile of Shortcuts automations before anything works. SenseKit aims to be useful right after install and permission approval.
+The project exists to solve one practical problem: an agent cannot act intelligently around the real world if the phone only wakes up on a user-built schedule. SenseKit aims to be useful right after install and permission approval, so the user's life can become the trigger.
 
 ## Why SenseKit
 
-- `Passive-first`: useful events should be possible without manual Shortcuts setup.
-- `Agent-first`: the phone ships observations and the agent decides what they mean.
+- `Perception-first`: the gap for most agents is sensing the real world, not adding another scheduler.
+- `Passive-first`: useful context should show up without manual Shortcuts setup.
+- `Agent-decides-meaning`: the phone ships observations and OpenClaw or your agent decides what they mean.
 - `Raw-by-default`: the outbound payload is a signal batch, not a pre-chewed event plus summary snapshot.
+- `Local-first`: runtime state, audit history, and debug traces stay on-device by default.
 - `Signed delivery`: every outbound payload is HMAC-signed before it leaves the phone.
-- `OpenClaw-first`: the primary integration path is signed outbound delivery, not hosting a server on the phone.
+- `OpenClaw-first today`: the primary integration path is signed outbound delivery, not hosting a server on the phone.
 
 ## Current status
 
@@ -22,16 +26,16 @@ SenseKit is early, opinionated, and real.
 
 What already exists in this repository:
 
-- a Swift runtime package with Motion, Location, HealthKit, and power collectors
-- raw-signal queueing, signed webhook delivery, and audit logging
-- a SwiftUI app shell with onboarding, settings, audit log, and debug timeline scaffolding
-- a separate bench harness target for field testing
-- shared JSON schemas and TypeScript validation helpers
+- an iOS workspace with a main app target and a separate bench harness target
+- a `SenseKitRuntime` Swift package with Motion, Location, HealthKit, and power collectors
+- raw-signal queueing, signed webhook delivery, SQLite-backed state, and audit logging
+- a `SenseKitUI` Swift package with onboarding, settings, audit log, and timeline surfaces
+- shared JSON schemas, fixtures, and TypeScript validation helpers
+- OpenClaw-facing skill, plugin, and example hook configuration assets
 
 What is still being validated on real devices:
 
-- wake detection precision
-- driving detection precision
+- wake and driving inference quality from real signal traces
 - battery impact over normal daily use
 - background wake and delivery reliability
 - final onboarding polish
@@ -47,12 +51,14 @@ If you are evaluating the project, start with:
 
 ```mermaid
 flowchart LR
-    A["On-device collectors<br/>Motion, location,<br/>HealthKit, power"] --> B["Raw signal batch"]
-    B --> C["Signed outbound queue"]
-    C --> D["OpenClaw webhook"]
+    A["iPhone sensors"] --> B["SenseKitRuntime collectors"]
+    B --> C["Local queue + audit/debug state"]
+    C --> D["sensekit.signal_batch.v1"]
+    D --> E["Signed OpenClaw hook"]
+    E --> F["Agent interpretation + actions"]
 ```
 
-SenseKit is now intentionally closer to a data transport runtime than an event engine. The phone captures raw collector observations, keeps local audit/debug traces, and sends signed signal batches so the agent can do the interpretation.
+SenseKit is intentionally closer to a context transport runtime than an on-device event engine. The phone captures raw collector observations, keeps local audit and debug traces, and sends signed signal batches so the agent layer can interpret sleep, driving, arrival, workouts, or anything else on top.
 
 ## What leaves the phone
 
@@ -67,10 +73,13 @@ In the current bench app, place coordinates are still gated by the existing plac
 
 ## Repository guide
 
-- [`apps/ios`](apps/ios): the iPhone app, bench harness, runtime package, and SwiftUI package
+- [`apps/ios/App`](apps/ios/App): the main iPhone app target and generated Xcode project notes
+- [`apps/ios/BenchHarness`](apps/ios/BenchHarness): the field-test app target with extra debug and labeling tooling
+- [`apps/ios/Packages/SenseKitRuntime`](apps/ios/Packages/SenseKitRuntime): collectors, queueing, persistence, and outbound delivery
+- [`apps/ios/Packages/SenseKitUI`](apps/ios/Packages/SenseKitUI): onboarding, settings, audit log, and timeline UI
 - [`packages/contracts`](packages/contracts): JSON schemas, fixtures, and TypeScript validation helpers
-- [`packages/openclaw-skill`](packages/openclaw-skill): example skill packaging for OpenClaw
-- [`packages/openclaw-plugin`](packages/openclaw-plugin): plugin surface for later OpenClaw integration work
+- [`packages/openclaw-skill`](packages/openclaw-skill): hook-facing and agent-facing OpenClaw assets
+- [`packages/openclaw-plugin`](packages/openclaw-plugin): plugin surface for OpenClaw integration work
 - [`packages/examples`](packages/examples): QR bootstrap and hook configuration examples
 - [`docs`](docs): ADRs, privacy notes, release notes, runbooks, and field-test plans
 
@@ -127,12 +136,14 @@ For personal testing, keep OpenClaw private and use Tailscale instead of exposin
 - Treat hook payloads as untrusted content even when they come from systems you control.
 - If OpenClaw returns `hook mapping failed`, remove any custom `transform` block first and test with the example mapping unchanged.
 
+If you want the quickest end-to-end integration path, start in [`packages/openclaw-skill`](packages/openclaw-skill) and [`packages/examples/hook-config`](packages/examples/hook-config).
+
 ## Contribution focus
 
 The highest-value work for the current milestone is:
 
-1. passive wake validation on real devices
-2. driving detection validation on real commutes
+1. sleep and wake inference validation on real devices
+2. driving inference validation on real commutes
 3. background wake and delivery reliability
 4. onboarding and debug timeline polish
 

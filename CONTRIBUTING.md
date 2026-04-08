@@ -4,13 +4,13 @@ Thanks for contributing.
 
 ## What this project is trying to be
 
-SenseKit is a deterministic context runtime for AI agents.
+SenseKit is a passive-first, raw-signal context runtime for AI agents.
 
 That means:
-- event detection should stay simple and explainable
+- collector behavior and outbound payloads should stay simple and explainable
 - passive detection matters more than clever-looking code
 - background behavior claims need real-device proof
-- LLMs may react to events, but they do not decide if an event happened
+- agents and LLMs may interpret signals after delivery, but SenseKit should not hide meaning behind opaque on-device logic
 
 ## Before you open a PR
 
@@ -55,7 +55,7 @@ xcodebuild -workspace apps/ios/SenseKit.xcworkspace -scheme SenseKitApp -sdk iph
 Please preserve these rules unless you are explicitly proposing an ADR to change them:
 
 - passive-first, not Shortcuts-first
-- deterministic corroboration, not ML event detection
+- raw-signal-first delivery, not heavyweight on-device event synthesis
 - outbound-only delivery, not phone-as-server
 - minimal data leaving device by default
 - no fake support for generic car Bluetooth on iPhone
@@ -65,9 +65,8 @@ Please preserve these rules unless you are explicitly proposing an ADR to change
 If your change affects architecture, add or update an ADR in `docs/adr`.
 
 Examples:
-- changing an event threshold model
+- changing the signal batch shape or signing rules
 - adding a new background mechanism
-- changing the wire contract
 - introducing a new package boundary
 
 ## Bench claims

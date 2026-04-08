@@ -5,7 +5,7 @@ This folder holds the working documentation for SenseKit.
 If you are new to the project, use this reading order:
 
 1. [README.md](../README.md) for the high-level product and repo overview
-2. [SPEC.md](../SPEC.md) for the product spec and event model
+2. [SPEC.md](../SPEC.md) for the product spec and signal model
 3. [docs/runbooks/runtime-bootstrap.md](runbooks/runtime-bootstrap.md) for the current integration and runtime bootstrap path
 4. [docs/bench/phase-1a-field-test.md](bench/phase-1a-field-test.md) for real-device validation work
 5. [docs/adr](adr) for the architecture rules that shape implementation decisions
@@ -14,8 +14,8 @@ If you are new to the project, use this reading order:
 
 - [Architecture Decision Records](adr)
   - why the project is passive-first
-  - why event detection is deterministic
   - why delivery is outbound-only
+  - how the runtime treats corroboration and noisy signals
   - what platform constraints the project treats as real
 - [Bench and validation docs](bench)
   - field-test plans
