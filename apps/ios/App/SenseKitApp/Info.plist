@@ -25,11 +25,11 @@
 	<key>NSHealthShareUsageDescription</key>
 	<string>SenseKit can observe workout samples and send workout signal metadata to your configured OpenClaw endpoint.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>SenseKit uses your saved places to detect arrivals and departures in the background and can send place labels or precise coordinates to your configured OpenClaw endpoint, depending on your setting.</string>
+	<string>SenseKit uses your saved places to detect arrivals and departures in the background and can send place labels or precise coordinates to your configured agent endpoint, depending on your setting.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>SenseKit uses your location while you set up places and to observe location changes that help OpenClaw reason about driving and place changes.</string>
+	<string>SenseKit uses your location while you set up places and to observe location changes that help agent reason about driving and place changes.</string>
 	<key>NSMotionUsageDescription</key>
-	<string>SenseKit uses Motion &amp; Fitness activity to observe movement changes and send those signals to your configured OpenClaw endpoint.</string>
+	<string>SenseKit uses Motion &amp; Fitness activity to observe movement changes and send those signals to your configured agent endpoint.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

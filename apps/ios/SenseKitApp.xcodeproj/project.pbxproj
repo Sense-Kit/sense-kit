@@ -7,8 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0EECF7D7A8D64C2587A56E01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0EECF7D7A8D64C2587A56D01 /* Assets.xcassets */; };
-		0EECF7D7A8D64C2587A56E02 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0EECF7D7A8D64C2587A56D03 /* PrivacyInfo.xcprivacy */; };
+		0EECF7D7A8D64C2587A56E01 /* App/SenseKitApp/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0EECF7D7A8D64C2587A56D01 /* App/SenseKitApp/Assets.xcassets */; };
+		0EECF7D7A8D64C2587A56E02 /* App/SenseKitApp/PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0EECF7D7A8D64C2587A56D03 /* App/SenseKitApp/PrivacyInfo.xcprivacy */; };
 		49F22094CEE3B32A91C4751A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DA7FB93EEBF6770CFC623D0 /* Foundation.framework */; };
 		66AA28CB504651511CD88B77 /* SenseKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4EB4F8498F7AB5F6DE3EF778 /* SenseKitUI */; };
 		670EAFA8C3855C0E0040B1D0 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DA7FB93EEBF6770CFC623D0 /* Foundation.framework */; };
@@ -18,9 +18,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0EECF7D7A8D64C2587A56D01 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = App/SenseKitApp/Assets.xcassets; sourceTree = "<group>"; };
-		0EECF7D7A8D64C2587A56D02 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = App/SenseKitApp/Info.plist; sourceTree = "<group>"; };
-		0EECF7D7A8D64C2587A56D03 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = App/SenseKitApp/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		0EECF7D7A8D64C2587A56D01 /* App/SenseKitApp/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = App/SenseKitApp/Assets.xcassets; sourceTree = "<group>"; };
+		0EECF7D7A8D64C2587A56D02 /* App/SenseKitApp/Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = App/SenseKitApp/Info.plist; sourceTree = "<group>"; };
+		0EECF7D7A8D64C2587A56D03 /* App/SenseKitApp/PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = App/SenseKitApp/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		5809E8954A07FC0C06117A85 /* SenseKitBenchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SenseKitBenchApp.swift; path = BenchHarness/SenseKitBenchApp/SenseKitBenchApp.swift; sourceTree = "<group>"; };
 		6DA7FB93EEBF6770CFC623D0 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		73E534B8B5C0243359816E2A /* SenseKitApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SenseKitApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -53,9 +53,9 @@
 		1062C768F300303E3FA44F93 /* SenseKitApp */ = {
 			isa = PBXGroup;
 			children = (
-				0EECF7D7A8D64C2587A56D01 /* Assets.xcassets */,
-				0EECF7D7A8D64C2587A56D02 /* Info.plist */,
-				0EECF7D7A8D64C2587A56D03 /* PrivacyInfo.xcprivacy */,
+				0EECF7D7A8D64C2587A56D01 /* App/SenseKitApp/Assets.xcassets */,
+				0EECF7D7A8D64C2587A56D02 /* App/SenseKitApp/Info.plist */,
+				0EECF7D7A8D64C2587A56D03 /* App/SenseKitApp/PrivacyInfo.xcprivacy */,
 				C5F08782EE81B3FC5E03A66E /* SenseKitApp.swift */,
 			);
 			name = SenseKitApp;
@@ -208,8 +208,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0EECF7D7A8D64C2587A56E01 /* Assets.xcassets in Resources */,
-				0EECF7D7A8D64C2587A56E02 /* PrivacyInfo.xcprivacy in Resources */,
+				0EECF7D7A8D64C2587A56E01 /* App/SenseKitApp/Assets.xcassets in Resources */,
+				0EECF7D7A8D64C2587A56E02 /* App/SenseKitApp/PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

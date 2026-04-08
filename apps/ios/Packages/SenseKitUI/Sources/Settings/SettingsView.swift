@@ -8,7 +8,6 @@ public struct SettingsView: View {
     private enum Field: Hashable {
         case endpoint
         case bearer
-        case secret
         case homeSearch
         case workSearch
     }
@@ -27,9 +26,6 @@ public struct SettingsView: View {
                 TextField("Bearer token", text: $model.bearerToken)
                     .connectionTextEntryStyle()
                     .focused($focusedField, equals: Field.bearer)
-                SecureField("HMAC secret", text: $model.hmacSecret)
-                    .connectionTextEntryStyle()
-                    .focused($focusedField, equals: Field.secret)
 
                 Button("Save Configuration") {
                     dismissInput()
@@ -234,7 +230,7 @@ public struct SettingsView: View {
             }
 
             Section("Bench Test") {
-                Picker("Test Scenario", selection: $model.selectedTestScenario) {
+                Picker("Signal Batch", selection: $model.selectedTestScenario) {
                     ForEach(testableScenarios, id: \.self) { scenario in
                         Text(label(for: scenario)).tag(scenario)
                     }
@@ -247,13 +243,13 @@ public struct SettingsView: View {
                     }
                 } label: {
                     ActionButtonLabel(
-                        title: "Send Test Scenario",
+                        title: "Send Test Signal Batch",
                         isRunning: model.isSendingTestScenario
                     )
                 }
                 .disabled(model.isBusy || model.endpointURLText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-                Text("This sends a small raw-signal scenario through the real queue, audit log, and OpenClaw delivery path.")
+                Text("This sends a representative raw signal batch through the real queue, audit log, and OpenClaw delivery path.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

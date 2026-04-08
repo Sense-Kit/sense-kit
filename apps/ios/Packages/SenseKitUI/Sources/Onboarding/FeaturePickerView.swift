@@ -8,7 +8,6 @@ public struct FeaturePickerView: View {
     @State private var draftDrivingEnabled = false
     @State private var draftFixedPlacesEnabled = false
     @State private var draftContinuousLocationEnabled = false
-    @State private var draftWorkoutsEnabled = false
     @State private var draftPlaceName = ""
     @State private var draftPlaceSearchQuery = ""
     @State private var draftPlaceRadiusMeters = 150.0
@@ -23,7 +22,6 @@ public struct FeaturePickerView: View {
     private enum Field: Hashable {
         case endpoint
         case hookToken
-        case secret
         case placeName
         case placeSearch
     }
@@ -89,21 +87,6 @@ public struct FeaturePickerView: View {
             motionSelectionCard
             placesSelectionCard
 
-            SetupSelectionCard(
-                icon: "figure.run",
-                title: "Workouts",
-                description: "Workout start and finish timing for follow-up flows.",
-                permissions: "HealthKit workout read",
-                rawPreview: "workout start/end context and recovery follow-up timing",
-                examples: [
-                    "workout_ended -> recovery prompt",
-                    "workout_started -> avoid long distracting replies"
-                ],
-                isSelected: draftWorkoutsEnabled
-            ) {
-                draftWorkoutsEnabled.toggle()
-            }
-
             Button {
                 dismissInput()
                 Task {
@@ -111,8 +94,7 @@ public struct FeaturePickerView: View {
                         wakeEnabled: draftWakeEnabled,
                         drivingEnabled: draftDrivingEnabled,
                         fixedPlacesEnabled: draftFixedPlacesEnabled,
-                        continuousLocationEnabled: draftContinuousLocationEnabled,
-                        workoutsEnabled: draftWorkoutsEnabled
+                        continuousLocationEnabled: draftContinuousLocationEnabled
                     )
                     hasUnlockedFollowUp = true
                 }
@@ -453,21 +435,6 @@ public struct FeaturePickerView: View {
                     }
                 }
             }
-
-            if draftWorkoutsEnabled {
-                SetupSurfaceCard {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label("Workouts", systemImage: "figure.run")
-                            .font(.headline)
-                        Text("Workout sharing is saved in the builder. The next runtime step is wiring the HealthKit permission and collector behind this choice.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                        Text("Inspiration: finish a workout and let OpenClaw switch into recovery mode, hydration reminders, or a short reflection flow.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
         }
     }
 
@@ -514,7 +481,7 @@ public struct FeaturePickerView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("OpenClaw is already configured. You can edit the fields below if the Gateway URL, hook token, or signing secret changes.")
+                        Text("OpenClaw is already configured. You can edit the fields below if the Gateway URL or hook token changes.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -527,10 +494,6 @@ public struct FeaturePickerView: View {
                         TextField("OpenClaw hook token", text: $model.bearerToken)
                             .setupTextFieldStyle()
                             .focused($focusedField, equals: .hookToken)
-
-                        SecureField("SenseKit HMAC secret", text: $model.hmacSecret)
-                            .setupTextFieldStyle()
-                            .focused($focusedField, equals: .secret)
                     }
 
                     Button {
@@ -549,11 +512,10 @@ public struct FeaturePickerView: View {
                     .disabled(model.isBusy)
 
                     if !model.showsOpenClawSetupGuide {
-                        Picker("Test Scenario", selection: $model.selectedTestScenario) {
+                        Picker("Signal Batch", selection: $model.selectedTestScenario) {
                             Text("Wake Signals").tag(SignalTestScenario.wakeSignals)
                             Text("Driving Signals").tag(SignalTestScenario.drivingSignals)
                             Text("Place Arrival").tag(SignalTestScenario.placeArrival)
-                            Text("Workout Finished").tag(SignalTestScenario.workoutFinished)
                         }
 
                         Button {
@@ -563,13 +525,13 @@ public struct FeaturePickerView: View {
                             }
                         } label: {
                             SetupActionLabel(
-                                title: "Send Test Scenario",
+                                title: "Send Test Signal Batch",
                                 isRunning: model.isSendingTestScenario
                             )
                         }
                         .disabled(model.isBusy)
 
-                        Text("This uses the live queue, audit log, and OpenClaw delivery path so you can verify the whole path before waiting for real sensor data.")
+                        Text("This sends a representative raw signal batch through the live queue, audit log, and OpenClaw delivery path so you can verify the hook immediately.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -599,14 +561,6 @@ public struct FeaturePickerView: View {
                         title: "Private commute mode",
                         setup: "Motion & Routine + Places + exact saved-place coordinates",
                         result: "OpenClaw can tell the difference between leaving one saved place, driving, and arriving at another without needing you to trigger anything manually."
-                    )
-
-                    Divider()
-
-                    InspirationExample(
-                        title: "Post-workout recovery",
-                        setup: "Workouts + labels-only place data",
-                        result: "OpenClaw can switch into recovery prompts, hydration reminders, or a short check-in after the workout ends."
                     )
                 }
             }
@@ -685,7 +639,6 @@ public struct FeaturePickerView: View {
             || model.drivingSelectionEnabled
             || model.placesSelectionEnabled
             || model.drivingLocationBoostEnabled
-            || model.workoutsSelectionEnabled
             || !model.fixedPlaces.isEmpty
     }
 
@@ -694,7 +647,6 @@ public struct FeaturePickerView: View {
             && draftDrivingEnabled == model.drivingSelectionEnabled
             && draftFixedPlacesEnabled == model.placesSelectionEnabled
             && draftContinuousLocationEnabled == model.drivingLocationBoostEnabled
-            && draftWorkoutsEnabled == model.workoutsSelectionEnabled
     }
 
     private var shouldShowFollowUp: Bool {
@@ -773,7 +725,6 @@ public struct FeaturePickerView: View {
         draftDrivingEnabled = model.drivingSelectionEnabled
         draftFixedPlacesEnabled = model.placesSelectionEnabled
         draftContinuousLocationEnabled = model.drivingLocationBoostEnabled
-        draftWorkoutsEnabled = model.workoutsSelectionEnabled
         showsMotionDetails = hasMotionSelection
         showsPlaceDetails = hasPlaceSelection
         showsPlaceSetup = draftFixedPlacesEnabled

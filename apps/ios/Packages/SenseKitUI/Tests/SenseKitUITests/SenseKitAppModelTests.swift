@@ -66,7 +66,6 @@ struct SenseKitAppModelTests {
         let model = SenseKitAppModel(service: service)
         model.endpointURLText = "https://example.ts.net/hooks/sensekit"
         model.bearerToken = "token-2"
-        model.hmacSecret = "secret-2"
         model.selectedFeatures = [.wakeBrief, .drivingMode]
         model.drivingLocationBoostEnabled = true
 
@@ -75,7 +74,7 @@ struct SenseKitAppModelTests {
         let savedConfiguration = await service.savedConfigurations.last
         #expect(savedConfiguration?.openClaw?.endpointURL.absoluteString == "https://example.ts.net/hooks/sensekit")
         #expect(savedConfiguration?.openClaw?.bearerToken == "token-2")
-        #expect(savedConfiguration?.openClaw?.hmacSecret == "secret-2")
+        #expect(savedConfiguration?.openClaw?.hmacSecret == SenseKitAppModel.defaultHMACSecret)
         #expect(savedConfiguration?.drivingLocationBoostEnabled == true)
         #expect(savedConfiguration?.enabledFeatures == [.wakeBrief, .drivingMode])
         #expect(model.feedback?.style == .success)
@@ -132,8 +131,7 @@ struct SenseKitAppModelTests {
             wakeEnabled: true,
             drivingEnabled: true,
             fixedPlacesEnabled: true,
-            continuousLocationEnabled: true,
-            workoutsEnabled: false
+            continuousLocationEnabled: true
         )
 
         let savedConfiguration = await service.savedConfigurations.last
@@ -141,7 +139,6 @@ struct SenseKitAppModelTests {
         #expect(savedConfiguration?.enabledFeatures.contains(.drivingMode) == true)
         #expect(savedConfiguration?.enabledFeatures.contains(.homeWork) == true)
         #expect(savedConfiguration?.drivingLocationBoostEnabled == true)
-        #expect(savedConfiguration?.enabledFeatures.contains(.workoutFollowUp) == false)
         #expect(model.feedback?.message == "Setup choices saved.")
     }
 
@@ -159,8 +156,7 @@ struct SenseKitAppModelTests {
             wakeEnabled: true,
             drivingEnabled: false,
             fixedPlacesEnabled: false,
-            continuousLocationEnabled: false,
-            workoutsEnabled: false
+            continuousLocationEnabled: false
         )
 
         let savedConfiguration = await service.savedConfigurations.last
@@ -182,13 +178,37 @@ struct SenseKitAppModelTests {
             wakeEnabled: false,
             drivingEnabled: false,
             fixedPlacesEnabled: false,
-            continuousLocationEnabled: true,
-            workoutsEnabled: false
+            continuousLocationEnabled: true
         )
 
         let savedConfiguration = await service.savedConfigurations.last
         #expect(savedConfiguration?.enabledFeatures.contains(.homeWork) == false)
         #expect(savedConfiguration?.drivingLocationBoostEnabled == true)
+    }
+
+    @Test
+    func applySetupSelectionsDoesNotClearWorkoutFeature() async throws {
+        let service = FakeSenseKitAppService(
+            initialState: SenseKitLoadedState(
+                configuration: RuntimeConfiguration(
+                    deviceID: "device-1",
+                    enabledFeatures: [.workoutFollowUp]
+                )
+            )
+        )
+        let model = SenseKitAppModel(service: service)
+        await model.load()
+
+        await model.applySetupSelections(
+            wakeEnabled: true,
+            drivingEnabled: false,
+            fixedPlacesEnabled: false,
+            continuousLocationEnabled: false
+        )
+
+        let savedConfiguration = await service.savedConfigurations.last
+        #expect(savedConfiguration?.enabledFeatures.contains(.wakeBrief) == true)
+        #expect(savedConfiguration?.enabledFeatures.contains(.workoutFollowUp) == true)
     }
 
     @Test
@@ -271,7 +291,7 @@ struct SenseKitAppModelTests {
         #expect(model.timelineEntries.count == 1)
         #expect(model.auditEntries.count == 1)
         #expect(model.feedback?.style == .success)
-        #expect(model.feedback?.message == "Test scenario sent. Check Timeline and Audit for the result.")
+        #expect(model.feedback?.message == "Test signal batch sent. Check Timeline and Audit for the result.")
     }
 
     @Test
@@ -282,7 +302,6 @@ struct SenseKitAppModelTests {
         let model = SenseKitAppModel(service: service)
         model.endpointURLText = "not-a-url"
         model.bearerToken = "token-2"
-        model.hmacSecret = "secret-2"
 
         await model.saveConnection()
 
@@ -426,14 +445,13 @@ struct SenseKitAppModelTests {
         await model.load()
         model.endpointURLText = "https://draft.ts.net/hooks/sensekit"
         model.bearerToken = "draft-token"
-        model.hmacSecret = "draft-secret"
         await service.setNextLoadedState(refreshedState)
 
         await model.refreshState()
 
         #expect(model.endpointURLText == "https://draft.ts.net/hooks/sensekit")
         #expect(model.bearerToken == "draft-token")
-        #expect(model.hmacSecret == "draft-secret")
+        #expect(model.hmacSecret == "saved-secret")
         #expect(model.timelineEntries.count == 1)
         #expect(model.timelineEntries.first?.message == "Background refresh")
     }

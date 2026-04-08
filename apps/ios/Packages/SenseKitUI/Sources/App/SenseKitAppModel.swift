@@ -18,6 +18,8 @@ public enum SettingsBusyAction: Sendable {
 @MainActor
 @Observable
 public final class SenseKitAppModel {
+    public static let defaultHMACSecret = "test"
+
     public var selectedFeatures: Set<FeatureFlag>
     public var connectionStatus: String
     public var drivingLocationBoostEnabled: Bool
@@ -64,7 +66,7 @@ public final class SenseKitAppModel {
         selectedAuditEventType: String? = nil,
         endpointURLText: String = "",
         bearerToken: String = "",
-        hmacSecret: String = "",
+        hmacSecret: String = SenseKitAppModel.defaultHMACSecret,
         homeSearchQuery: String = "",
         workSearchQuery: String = "",
         homeRadiusMeters: Double = 150,
@@ -174,14 +176,12 @@ public final class SenseKitAppModel {
 
         let endpoint = endpointURLText.trimmingCharacters(in: .whitespacesAndNewlines)
         let bearer = bearerToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        let secret = hmacSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-
         var nextConfiguration = configuration
         nextConfiguration.enabledFeatures = selectedFeatures
         nextConfiguration.drivingLocationBoostEnabled = drivingLocationBoostEnabled
         nextConfiguration.placeSharingMode = placeSharingMode
 
-        if endpoint.isEmpty && bearer.isEmpty && secret.isEmpty {
+        if endpoint.isEmpty && bearer.isEmpty {
             nextConfiguration.openClaw = nil
         } else {
             guard let url = URL(string: endpoint), let scheme = url.scheme, ["http", "https"].contains(scheme.lowercased()) else {
@@ -192,15 +192,11 @@ public final class SenseKitAppModel {
                 setError(status: "Bearer token required", message: "Enter the OpenClaw bearer token.")
                 return
             }
-            guard !secret.isEmpty else {
-                setError(status: "HMAC secret required", message: "Enter the SenseKit HMAC secret.")
-                return
-            }
 
             nextConfiguration.openClaw = OpenClawConfiguration(
                 endpointURL: url,
                 bearerToken: bearer,
-                hmacSecret: secret
+                hmacSecret: Self.defaultHMACSecret
             )
         }
 
@@ -236,9 +232,9 @@ public final class SenseKitAppModel {
             try await service.sendTestScenario(selectedTestScenario)
             let state = try await service.loadState()
             apply(state)
-            setSuccess(message: "Test scenario sent. Check Timeline and Audit for the result.")
+            setSuccess(message: "Test signal batch sent. Check Timeline and Audit for the result.")
         } catch {
-            setError(status: "Test scenario failed", message: error.localizedDescription)
+            setError(status: "Test signal batch failed", message: error.localizedDescription)
         }
     }
 
@@ -261,11 +257,10 @@ public final class SenseKitAppModel {
         wakeEnabled: Bool,
         drivingEnabled: Bool,
         fixedPlacesEnabled: Bool,
-        continuousLocationEnabled: Bool,
-        workoutsEnabled: Bool
+        continuousLocationEnabled: Bool
     ) async {
         var nextFeatures = selectedFeatures
-        nextFeatures.subtract([.wakeBrief, .drivingMode, .homeWork, .workoutFollowUp])
+        nextFeatures.subtract([.wakeBrief, .drivingMode, .homeWork])
 
         if wakeEnabled {
             nextFeatures.insert(.wakeBrief)
@@ -277,10 +272,6 @@ public final class SenseKitAppModel {
 
         if fixedPlacesEnabled {
             nextFeatures.insert(.homeWork)
-        }
-
-        if workoutsEnabled {
-            nextFeatures.insert(.workoutFollowUp)
         }
 
         selectedFeatures = nextFeatures
@@ -527,7 +518,7 @@ public final class SenseKitAppModel {
         placeSharingMode = state.configuration.placeSharingMode
         endpointURLText = state.configuration.openClaw?.endpointURL.absoluteString ?? ""
         bearerToken = state.configuration.openClaw?.bearerToken ?? ""
-        hmacSecret = state.configuration.openClaw?.hmacSecret ?? ""
+        hmacSecret = state.configuration.openClaw?.hmacSecret ?? Self.defaultHMACSecret
         homeRadiusMeters = state.configuration.homeRegion?.radiusMeters ?? homeRadiusMeters
         workRadiusMeters = state.configuration.workRegion?.radiusMeters ?? workRadiusMeters
     }
@@ -688,7 +679,7 @@ public final class SenseKitAppModel {
         return [
             "Add a SenseKit hook to your OpenClaw JSON and create a separate hooks token for it.",
             "Keep OpenClaw private and expose it with Tailscale Serve instead of opening the raw Gateway port to the internet.",
-            "Paste the Tailscale hook URL, the hook token, and the SenseKit HMAC secret below, then save the connection."
+            "Paste the Tailscale hook URL and the hook token below, then save the connection."
         ]
     }
 
@@ -748,7 +739,11 @@ public final class SenseKitAppModel {
             return true
         }
 
-        let savedSecret = configuration.openClaw?.hmacSecret ?? ""
+        if configuration.openClaw == nil {
+            return false
+        }
+
+        let savedSecret = configuration.openClaw?.hmacSecret ?? Self.defaultHMACSecret
         return hmacSecret != savedSecret
     }
 
