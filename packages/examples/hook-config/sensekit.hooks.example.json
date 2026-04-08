@@ -2,6 +2,12 @@
   "hooks": {
     "enabled": true,
     "token": "${OPENCLAW_HOOKS_TOKEN}",
+    "path": "/hooks",
+    "maxBodyBytes": 65536,
+    "defaultSessionKey": "hook:sensekit",
+    "allowRequestSessionKey": false,
+    "allowedSessionKeyPrefixes": ["hook:"],
+    "allowedAgentIds": ["main"],
     "mappings": [
       {
         "match": {
@@ -11,11 +17,10 @@
         "agentId": "main",
         "wakeMode": "now",
         "name": "SenseKit",
-        "sessionKey": "hook:sensekit:{{event.event_id}}",
-        "messageTemplate": "SenseKit event: {{event.event_type}}\nConfidence: {{event.confidence}}\nMode hint: {{event.mode_hint}}\nSnapshot: {{snapshot}}",
+        "sessionKey": "hook:sensekit:{{batch_id}}",
+        "messageTemplate": "SenseKit batch: {{batch_id}}\nPlatform: {{device.platform}}\nPlace sharing: {{device.place_sharing_mode}}\nSignals: {{signals}}",
         "deliver": false
       }
     ]
   }
 }
-

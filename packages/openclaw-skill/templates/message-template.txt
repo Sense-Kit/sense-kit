@@ -1,4 +1,5 @@
 SenseKit batch: {{batch_id}}
 Platform: {{device.platform}}
 Place sharing: {{device.place_sharing_mode}}
+Sent at: {{sent_at}}
 Signals: {{signals}}
